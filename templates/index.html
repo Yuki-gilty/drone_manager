@@ -10,9 +10,15 @@
     <nav class="navbar">
         <div class="nav-container">
             <h1 class="nav-title">ドローンレース機体管理</h1>
-            <div class="nav-links">
-                <button class="nav-link active" data-page="home">ホーム</button>
-                <button class="nav-link" data-page="calendar">カレンダー</button>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div class="nav-links">
+                    <button class="nav-link active" data-page="home">ホーム</button>
+                    <button class="nav-link" data-page="calendar">カレンダー</button>
+                </div>
+                <button id="theme-toggle" class="theme-toggle" aria-label="テーマを切り替え">
+                    <span id="theme-icon">🌙</span>
+                    <span id="theme-text">ダーク</span>
+                </button>
             </div>
         </div>
     </nav>
