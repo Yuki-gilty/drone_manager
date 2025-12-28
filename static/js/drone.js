@@ -179,7 +179,12 @@ function loadDroneList() {
 function createDroneCard(drone) {
     const card = document.createElement('div');
     card.className = 'drone-card';
-    card.addEventListener('click', () => showDroneDetail(drone.id));
+    card.addEventListener('click', (e) => {
+        // プルダウンのクリックは機体詳細への遷移を防ぐ
+        if (!e.target.closest('.drone-status-select')) {
+            showDroneDetail(drone.id);
+        }
+    });
 
     const photo = drone.photo 
         ? `<img src="${drone.photo}" alt="${drone.name}" class="drone-photo">`
@@ -192,10 +197,55 @@ function createDroneCard(drone) {
 
     const type = droneTypeStorage.getById(drone.type);
     const typeName = type ? type.name : '不明';
+    
+    // 状態の取得（デフォルトは'ready'）
+    const status = drone.status || 'ready';
+    const statusConfig = {
+        ready: { icon: 'check', color: '#10b981', label: 'Ready' },
+        unstable: { icon: 'alert-triangle', color: '#f59e0b', label: 'Unstable' },
+        faulty: { icon: 'x', color: '#ef4444', label: 'Faulty' }
+    };
+    const currentStatus = statusConfig[status] || statusConfig.ready;
 
     card.innerHTML = `
         <div class="drone-photo-container">
             ${photo}
+            <div class="drone-status-select-wrapper" style="position: absolute; top: 0.75rem; right: 0.75rem; z-index: 10;">
+                <select class="drone-status-select" data-drone-id="${drone.id}" style="
+                    appearance: none;
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(8px);
+                    border: 1px solid var(--border-base);
+                    border-radius: var(--radius-md);
+                    padding: 0.5rem 2rem 0.5rem 2.5rem;
+                    font-size: 0.875rem;
+                    font-weight: 600;
+                    color: ${currentStatus.color};
+                    cursor: pointer;
+                    box-shadow: var(--shadow-md);
+                    transition: all 0.2s;
+                ">
+                    <option value="ready" ${status === 'ready' ? 'selected' : ''}>Ready</option>
+                    <option value="unstable" ${status === 'unstable' ? 'selected' : ''}>Unstable</option>
+                    <option value="faulty" ${status === 'faulty' ? 'selected' : ''}>Faulty</option>
+                </select>
+                <i data-lucide="${currentStatus.icon}" size="16" style="
+                    position: absolute;
+                    left: 0.75rem;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: ${currentStatus.color};
+                    pointer-events: none;
+                "></i>
+                <i data-lucide="chevron-down" size="14" style="
+                    position: absolute;
+                    right: 0.5rem;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    color: var(--text-muted);
+                    pointer-events: none;
+                "></i>
+            </div>
         </div>
         <div class="drone-card-info">
             <span class="drone-type-badge">${escapeHtml(typeName)}</span>
@@ -206,6 +256,25 @@ function createDroneCard(drone) {
             </div>
         </div>
     `;
+
+    // 状態プルダウンのイベントリスナーを設定
+    const statusSelect = card.querySelector('.drone-status-select');
+    if (statusSelect) {
+        statusSelect.addEventListener('change', (e) => {
+            e.stopPropagation();
+            const newStatus = e.target.value;
+            updateDroneStatus(drone.id, newStatus);
+            // アイコンと色を更新
+            const newStatusConfig = statusConfig[newStatus];
+            const iconElement = card.querySelector('.drone-status-select-wrapper i[data-lucide]');
+            if (iconElement) {
+                iconElement.setAttribute('data-lucide', newStatusConfig.icon);
+                iconElement.style.color = newStatusConfig.color;
+            }
+            statusSelect.style.color = newStatusConfig.color;
+            lucide.createIcons();
+        });
+    }
 
     return card;
 }
@@ -320,7 +389,8 @@ async function addDrone() {
         type,
         startDate,
         photo: photoBase64,
-        parts: []
+        parts: [],
+        status: 'ready' // デフォルト状態
     };
 
     const newDrone = droneStorage.add(drone);
@@ -430,16 +500,61 @@ export function showDroneDetail(droneId) {
         };
     });
 
+    // 状態の取得（デフォルトは'ready'）
+    const status = drone.status || 'ready';
+    const statusConfig = {
+        ready: { icon: 'check', color: '#10b981', label: 'Ready' },
+        unstable: { icon: 'alert-triangle', color: '#f59e0b', label: 'Unstable' },
+        faulty: { icon: 'x', color: '#ef4444', label: 'Faulty' }
+    };
+    const currentStatus = statusConfig[status] || statusConfig.ready;
+
     const detailContent = document.getElementById('drone-detail-content');
     detailContent.innerHTML = `
         <div class="drone-detail-header" style="display: grid; grid-template-columns: 300px 1fr; gap: 2.5rem; align-items: start; border-bottom: 1px solid var(--border-base); padding-bottom: 2.5rem; margin-bottom: 2.5rem;">
-            <div style="width: 100%; aspect-ratio: 1; border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-main); border: 1px solid var(--border-base);">
+            <div style="position: relative; width: 100%; aspect-ratio: 1; border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-main); border: 1px solid var(--border-base);">
                 ${drone.photo ? `<img src="${drone.photo}" alt="${drone.name}" style="width: 100%; height: 100%; object-fit: cover;">` : `
                     <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 0.75rem;">
                         <i data-lucide="image" size="48" style="opacity: 0.2;"></i>
                         <span style="font-weight: 500; opacity: 0.5;">NO PHOTO</span>
                     </div>
                 `}
+                <div class="drone-status-select-wrapper" style="position: absolute; top: 0.75rem; right: 0.75rem; z-index: 10;">
+                    <select class="drone-status-select" data-drone-id="${drone.id}" style="
+                        appearance: none;
+                        background: rgba(255, 255, 255, 0.95);
+                        backdrop-filter: blur(8px);
+                        border: 1px solid var(--border-base);
+                        border-radius: var(--radius-md);
+                        padding: 0.5rem 2rem 0.5rem 2.5rem;
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        color: ${currentStatus.color};
+                        cursor: pointer;
+                        box-shadow: var(--shadow-md);
+                        transition: all 0.2s;
+                    ">
+                        <option value="ready" ${status === 'ready' ? 'selected' : ''}>Ready</option>
+                        <option value="unstable" ${status === 'unstable' ? 'selected' : ''}>Unstable</option>
+                        <option value="faulty" ${status === 'faulty' ? 'selected' : ''}>Faulty</option>
+                    </select>
+                    <i data-lucide="${currentStatus.icon}" size="16" style="
+                        position: absolute;
+                        left: 0.75rem;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        color: ${currentStatus.color};
+                        pointer-events: none;
+                    "></i>
+                    <i data-lucide="chevron-down" size="14" style="
+                        position: absolute;
+                        right: 0.5rem;
+                        top: 50%;
+                        transform: translateY(-50%);
+                        color: var(--text-muted);
+                        pointer-events: none;
+                    "></i>
+                </div>
             </div>
             <div class="drone-detail-info">
                 <span class="drone-type-badge">${escapeHtml(typeName)}</span>
@@ -542,6 +657,24 @@ export function showDroneDetail(droneId) {
 
     // アイコンをレンダリング
     lucide.createIcons();
+
+    // 状態プルダウンのイベントリスナーを設定
+    const statusSelect = detailContent.querySelector('.drone-status-select');
+    if (statusSelect) {
+        statusSelect.addEventListener('change', (e) => {
+            const newStatus = e.target.value;
+            updateDroneStatus(drone.id, newStatus);
+            // アイコンと色を更新
+            const newStatusConfig = statusConfig[newStatus];
+            const iconElement = detailContent.querySelector('.drone-status-select-wrapper i[data-lucide]');
+            if (iconElement) {
+                iconElement.setAttribute('data-lucide', newStatusConfig.icon);
+                iconElement.style.color = newStatusConfig.color;
+            }
+            statusSelect.style.color = newStatusConfig.color;
+            lucide.createIcons();
+        });
+    }
 
     // イベントリスナーを設定
     document.getElementById('add-part-btn').addEventListener('click', () => {
@@ -983,6 +1116,17 @@ function deleteDrone(droneId) {
  */
 export function getCurrentDroneId() {
     return currentDroneId;
+}
+
+/**
+ * Update drone status
+ */
+function updateDroneStatus(droneId, status) {
+    droneStorage.update(droneId, { status });
+    // 一覧画面も更新する必要がある場合は再読み込み
+    if (document.getElementById('drone-list')) {
+        loadDroneList();
+    }
 }
 
 /**
