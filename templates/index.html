@@ -110,7 +110,7 @@
 
     <!-- モーダル: 種類管理 -->
     <div id="manage-types-modal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 800px;">
             <span class="close">&times;</span>
             <h2>機体の種類を管理</h2>
             <div class="types-list-container">
@@ -133,7 +133,19 @@
             <form id="add-part-form">
                 <div class="form-group">
                     <label for="part-name">パーツ名 *</label>
-                    <input type="text" id="part-name" required>
+                    <select id="part-name" required>
+                        <option value="">選択してください</option>
+                    </select>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #7f8c8d;">
+                        または <a href="#" id="use-custom-part-name" style="color: #3498db; text-decoration: underline; cursor: pointer;">カスタムパーツ名を入力</a>
+                    </div>
+                    <input type="text" id="part-name-custom" placeholder="カスタムパーツ名" style="display: none; margin-top: 0.5rem;">
+                </div>
+                <div class="form-group">
+                    <label for="part-manufacturer">メーカー</label>
+                    <select id="part-manufacturer">
+                        <option value="">選択してください（任意）</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="part-start-date">使用開始日 *</label>
@@ -144,6 +156,23 @@
                     <button type="submit" class="btn btn-primary">追加</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- モーダル: メーカー管理 -->
+    <div id="manage-manufacturers-modal" class="modal" style="z-index: 2000;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>メーカーを管理</h2>
+            <div class="types-list-container">
+                <div id="manufacturers-list" class="types-list">
+                    <!-- メーカーリストがここに表示されます -->
+                </div>
+                <form id="add-manufacturer-form" class="add-type-form" onsubmit="return false;">
+                    <input type="text" id="new-manufacturer-name" placeholder="新しいメーカー名" required>
+                    <button type="submit" class="btn btn-primary">追加</button>
+                </form>
+            </div>
         </div>
     </div>
 

@@ -2,7 +2,7 @@
  * Parts management module
  */
 
-import { partStorage, repairStorage, droneStorage } from './storage.js';
+import { partStorage, repairStorage, droneStorage, manufacturerStorage } from './storage.js';
 
 let currentPartId = null;
 
@@ -18,6 +18,8 @@ export function showPartDetail(partId) {
     const droneName = drone ? drone.name : '不明';
     const replacements = part.replacementHistory || [];
     const repairs = repairStorage.getByPartId(partId);
+    const manufacturer = part.manufacturerId ? manufacturerStorage.getById(part.manufacturerId) : null;
+    const manufacturerName = manufacturer ? manufacturer.name : '未設定';
 
     const detailContent = document.getElementById('part-detail-content');
     detailContent.innerHTML = `
@@ -25,6 +27,7 @@ export function showPartDetail(partId) {
             <div class="part-detail-info">
                 <h2>${escapeHtml(part.name)}</h2>
                 <p><strong>所属機体:</strong> ${escapeHtml(droneName)}</p>
+                <p><strong>メーカー:</strong> ${escapeHtml(manufacturerName)}</p>
                 <p><strong>使用開始日:</strong> ${formatDate(part.startDate)}</p>
             </div>
         </div>

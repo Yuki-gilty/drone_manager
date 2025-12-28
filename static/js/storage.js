@@ -8,7 +8,8 @@ const STORAGE_KEYS = {
     PARTS: 'parts',
     REPAIRS: 'repairs',
     DRONE_TYPES: 'drone_types',
-    PRACTICE_DAYS: 'practice_days'
+    PRACTICE_DAYS: 'practice_days',
+    MANUFACTURERS: 'manufacturers'
 };
 
 /**
@@ -140,6 +141,15 @@ export const practiceDayStorage = {
     add: (day) => add(STORAGE_KEYS.PRACTICE_DAYS, day),
     update: (id, updates) => update(STORAGE_KEYS.PRACTICE_DAYS, id, updates),
     remove: (id) => remove(STORAGE_KEYS.PRACTICE_DAYS, id)
+};
+
+// Manufacturer operations
+export const manufacturerStorage = {
+    getAll: () => getAll(STORAGE_KEYS.MANUFACTURERS),
+    getById: (id) => getById(STORAGE_KEYS.MANUFACTURERS, id),
+    add: (manufacturer) => add(STORAGE_KEYS.MANUFACTURERS, manufacturer),
+    update: (id, updates) => update(STORAGE_KEYS.MANUFACTURERS, id, updates),
+    remove: (id) => remove(STORAGE_KEYS.MANUFACTURERS, id)
 };
 
 // Initialize storage on module load

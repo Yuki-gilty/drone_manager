@@ -576,9 +576,67 @@ body {
     border: 1px solid #e9ecef;
 }
 
+.type-item-expandable {
+    background-color: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    margin-bottom: 1rem;
+}
+
+.type-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+}
+
+.type-item-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
 .type-name {
     font-weight: 500;
     color: #2c3e50;
+}
+
+.type-parts-section {
+    padding: 1rem;
+    border-top: 1px solid #e9ecef;
+    background-color: white;
+    border-radius: 0 0 6px 6px;
+}
+
+.type-parts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.type-part-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.add-type-part-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.type-part-name-input {
+    flex: 1;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
 }
 
 .add-type-form {

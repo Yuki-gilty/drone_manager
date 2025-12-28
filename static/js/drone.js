@@ -2,7 +2,7 @@
  * Drone management module
  */
 
-import { droneStorage, droneTypeStorage, partStorage, repairStorage } from './storage.js';
+import { droneStorage, droneTypeStorage, partStorage, repairStorage, manufacturerStorage } from './storage.js';
 
 let currentDroneId = null;
 let selectedTypeFilter = '';
@@ -30,6 +30,11 @@ function setupEventListeners() {
         openManageTypesModal();
     });
 
+    // メーカー管理ボタン
+    document.getElementById('manage-manufacturers-btn').addEventListener('click', () => {
+        openManageManufacturersModal();
+    });
+
     // 種類フィルター
     document.getElementById('type-filter').addEventListener('change', (e) => {
         selectedTypeFilter = e.target.value;
@@ -48,6 +53,17 @@ function setupEventListeners() {
         addDroneType();
     });
 
+    // メーカー追加フォーム
+    const addManufacturerForm = document.getElementById('add-manufacturer-form');
+    if (addManufacturerForm) {
+        addManufacturerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            addManufacturer();
+            return false;
+        });
+    }
+
     // 戻るボタン
     document.getElementById('back-to-list').addEventListener('click', () => {
         showHomePage();
@@ -56,6 +72,7 @@ function setupEventListeners() {
     // モーダルクローズ
     setupModalClose('add-drone-modal', 'cancel-add-drone');
     setupModalClose('manage-types-modal');
+    setupModalClose('manage-manufacturers-modal');
 
     // 写真プレビュー
     document.getElementById('drone-photo').addEventListener('change', (e) => {
@@ -193,9 +210,33 @@ async function addDrone() {
         parts: []
     };
 
-    droneStorage.add(drone);
+    const newDrone = droneStorage.add(drone);
+    
+    // 種類のデフォルトパーツを追加
+    const droneType = droneTypeStorage.getById(type);
+    if (droneType && droneType.defaultParts && droneType.defaultParts.length > 0) {
+        const parts = newDrone.parts || [];
+        droneType.defaultParts.forEach(partData => {
+            // 互換性のため、文字列の場合はそのまま、オブジェクトの場合はnameとmanufacturerIdを使用
+            const partName = typeof partData === 'string' ? partData : partData.name;
+            const manufacturerId = typeof partData === 'string' ? null : (partData.manufacturerId || null);
+            const part = {
+                droneId: newDrone.id,
+                name: partName,
+                startDate: startDate, // 機体の使用開始日と同じにする
+                replacementHistory: [],
+                manufacturerId: manufacturerId
+            };
+            const newPart = partStorage.add(part);
+            parts.push(newPart.id);
+        });
+        droneStorage.update(newDrone.id, { parts });
+    }
+    
     closeModal('add-drone-modal');
-    loadDroneList();
+    
+    // ホーム画面を表示してから一覧を更新
+    showHomePage();
 }
 
 /**
@@ -265,6 +306,15 @@ export function showDroneDetail(droneId) {
     const typeName = type ? type.name : '不明';
     const parts = partStorage.getByDroneId(droneId);
     const repairs = repairStorage.getByDroneId(droneId);
+    
+    // パーツにメーカー情報を追加
+    const partsWithManufacturer = parts.map(part => {
+        const manufacturer = part.manufacturerId ? manufacturerStorage.getById(part.manufacturerId) : null;
+        return {
+            ...part,
+            manufacturerName: manufacturer ? manufacturer.name : null
+        };
+    });
 
     const detailContent = document.getElementById('drone-detail-content');
     detailContent.innerHTML = `
@@ -286,12 +336,12 @@ export function showDroneDetail(droneId) {
                 <button id="add-part-btn" class="btn btn-primary">パーツを追加</button>
             </div>
             <div id="parts-list" class="parts-list">
-                ${parts.length === 0 ? '<p class="empty-message">パーツが登録されていません</p>' : ''}
-                ${parts.map(part => `
+                ${partsWithManufacturer.length === 0 ? '<p class="empty-message">パーツが登録されていません</p>' : ''}
+                ${partsWithManufacturer.map(part => `
                     <div class="part-item" data-part-id="${part.id}">
                         <div class="part-item-info">
                             <h4>${escapeHtml(part.name)}</h4>
-                            <p>使用開始: ${formatDate(part.startDate)}</p>
+                            <p>${part.manufacturerName ? `<strong>メーカー:</strong> ${escapeHtml(part.manufacturerName)}<br>` : ''}使用開始: ${formatDate(part.startDate)}</p>
                         </div>
                         <button class="btn btn-secondary view-part-btn" data-part-id="${part.id}">詳細</button>
                     </div>
@@ -394,8 +444,16 @@ function setupModalClose(modalId, cancelButtonId = null) {
     }
 
     window.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            closeModal(modalId);
+        // メーカー管理モーダルの場合は、種類管理モーダルを閉じないようにする
+        if (modalId === 'manage-manufacturers-modal') {
+            // メーカー管理モーダルが開いている場合、種類管理モーダルは閉じない
+            if (e.target === modal) {
+                closeModal(modalId);
+            }
+        } else {
+            if (e.target === modal) {
+                closeModal(modalId);
+            }
         }
     });
 }
@@ -433,12 +491,69 @@ function loadTypesList() {
     }
 
     types.forEach(type => {
+        const defaultParts = type.defaultParts || [];
         const item = document.createElement('div');
-        item.className = 'type-item';
+        item.className = 'type-item-expandable';
+        item.dataset.typeId = type.id;
+        
+        const isExpanded = item.dataset.expanded === 'true';
+        
         item.innerHTML = `
-            <span class="type-name">${escapeHtml(type.name)}</span>
-            <button class="btn btn-danger btn-small delete-type-btn" data-type-id="${type.id}">削除</button>
+            <div class="type-item-header">
+                <span class="type-name">${escapeHtml(type.name)}</span>
+                <div class="type-item-actions">
+                    <button class="btn btn-secondary btn-small toggle-parts-btn" data-type-id="${type.id}">
+                        ${isExpanded ? 'パーツを閉じる' : 'パーツを管理'}
+                    </button>
+                    <button class="btn btn-danger btn-small delete-type-btn" data-type-id="${type.id}">削除</button>
+                </div>
+            </div>
+            <div class="type-parts-section" style="display: ${isExpanded ? 'block' : 'none'};">
+                <div class="type-parts-list">
+                    ${defaultParts.length === 0 
+                        ? '<p class="empty-message" style="padding: 1rem; margin: 0;">パーツが登録されていません</p>'
+                        : defaultParts.map((part, index) => {
+                            // 互換性のため、文字列の場合はそのまま、オブジェクトの場合はnameを使用
+                            const partName = typeof part === 'string' ? part : part.name;
+                            const partObj = typeof part === 'string' ? { name: part, manufacturerId: null } : part;
+                            const manufacturer = partObj.manufacturerId ? manufacturerStorage.getById(partObj.manufacturerId) : null;
+                            const manufacturerName = manufacturer ? manufacturer.name : '';
+                            return `
+                                <div class="type-part-item">
+                                    <div>
+                                        <span>${escapeHtml(partName)}</span>
+                                        ${manufacturerName ? `<span style="color: #7f8c8d; font-size: 0.875rem; margin-left: 0.5rem;">(${escapeHtml(manufacturerName)})</span>` : ''}
+                                    </div>
+                                    <button class="btn btn-danger btn-small delete-type-part-btn" data-type-id="${type.id}" data-part-index="${index}">削除</button>
+                                </div>
+                            `;
+                        }).join('')
+                    }
+                </div>
+                <form class="add-type-part-form" data-type-id="${type.id}">
+                    <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                        <div style="flex: 1;">
+                            <input type="text" class="type-part-name-input" placeholder="パーツ名を入力" required>
+                        </div>
+                        <div style="flex: 1;">
+                            <select class="type-part-manufacturer-select" data-type-id="${type.id}" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem;">
+                                <option value="">メーカー（任意）</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-small">パーツを追加</button>
+                    </div>
+                    <div style="margin-top: 0.5rem; font-size: 0.875rem;">
+                        <a href="#" class="manage-manufacturers-link" style="color: #3498db; text-decoration: underline; cursor: pointer;">メーカーを管理</a>
+                    </div>
+                </form>
+            </div>
         `;
+        
+        // イベントリスナーを設定
+        item.querySelector('.toggle-parts-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleTypeParts(type.id);
+        });
         
         item.querySelector('.delete-type-btn').addEventListener('click', () => {
             if (confirm(`「${type.name}」を削除しますか？`)) {
@@ -446,8 +561,135 @@ function loadTypesList() {
             }
         });
         
+        const addPartForm = item.querySelector('.add-type-part-form');
+        addPartForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            addTypePart(type.id);
+        });
+        
+        // メーカー選択肢を読み込む
+        const manufacturerSelect = item.querySelector('.type-part-manufacturer-select');
+        loadManufacturerOptionsForType(manufacturerSelect);
+        
+        // メーカー管理リンクのイベントリスナー
+        const manageManufacturersLink = item.querySelector('.manage-manufacturers-link');
+        if (manageManufacturersLink) {
+            manageManufacturersLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                openManageManufacturersModal();
+            });
+        }
+        
+        item.querySelectorAll('.delete-type-part-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const partIndex = parseInt(e.target.dataset.partIndex);
+                deleteTypePart(type.id, partIndex);
+            });
+        });
+        
         typesList.appendChild(item);
     });
+}
+
+/**
+ * Load manufacturer options for type part form
+ */
+function loadManufacturerOptionsForType(selectElement) {
+    const manufacturers = manufacturerStorage.getAll();
+    selectElement.innerHTML = '<option value="">メーカー（任意）</option>';
+    
+    manufacturers.forEach(manufacturer => {
+        const option = document.createElement('option');
+        option.value = manufacturer.id;
+        option.textContent = manufacturer.name;
+        selectElement.appendChild(option);
+    });
+}
+
+/**
+ * Toggle type parts section
+ */
+function toggleTypeParts(typeId) {
+    const typeItem = document.querySelector(`.type-item-expandable[data-type-id="${typeId}"]`);
+    if (!typeItem) return;
+    
+    const partsSection = typeItem.querySelector('.type-parts-section');
+    const toggleBtn = typeItem.querySelector('.toggle-parts-btn');
+    const isExpanded = partsSection.style.display !== 'none';
+    
+    partsSection.style.display = isExpanded ? 'none' : 'block';
+    toggleBtn.textContent = isExpanded ? 'パーツを管理' : 'パーツを閉じる';
+    typeItem.dataset.expanded = (!isExpanded).toString();
+}
+
+/**
+ * Add part to type
+ */
+function addTypePart(typeId) {
+    const typeItem = document.querySelector(`.type-item-expandable[data-type-id="${typeId}"]`);
+    if (!typeItem) return;
+    
+    const input = typeItem.querySelector('.type-part-name-input');
+    const manufacturerSelect = typeItem.querySelector('.type-part-manufacturer-select');
+    const partName = input.value.trim();
+    const manufacturerId = manufacturerSelect.value || null;
+    
+    if (!partName) {
+        alert('パーツ名を入力してください');
+        return;
+    }
+    
+    const type = droneTypeStorage.getById(typeId);
+    if (!type) return;
+    
+    // defaultPartsを正規化（文字列の場合はオブジェクトに変換）
+    let defaultParts = type.defaultParts || [];
+    defaultParts = defaultParts.map(part => {
+        if (typeof part === 'string') {
+            return { name: part, manufacturerId: null };
+        }
+        return part;
+    });
+    
+    // 既に同じ名前のパーツが存在するかチェック
+    if (defaultParts.some(part => {
+        const name = typeof part === 'string' ? part : part.name;
+        return name === partName;
+    })) {
+        alert('このパーツは既に登録されています');
+        return;
+    }
+    
+    defaultParts.push({ name: partName, manufacturerId });
+    droneTypeStorage.update(typeId, { defaultParts });
+    
+    input.value = '';
+    manufacturerSelect.value = '';
+    loadTypesList();
+}
+
+/**
+ * Delete part from type
+ */
+function deleteTypePart(typeId, partIndex) {
+    const type = droneTypeStorage.getById(typeId);
+    if (!type) return;
+    
+    const defaultParts = type.defaultParts || [];
+    if (partIndex < 0 || partIndex >= defaultParts.length) return;
+    
+    // 互換性のため、文字列の場合はそのまま、オブジェクトの場合はnameを使用
+    const part = defaultParts[partIndex];
+    const partName = typeof part === 'string' ? part : part.name;
+    
+    if (!confirm(`「${partName}」を削除しますか？`)) {
+        return;
+    }
+    
+    defaultParts.splice(partIndex, 1);
+    droneTypeStorage.update(typeId, { defaultParts });
+    
+    loadTypesList();
 }
 
 /**
@@ -542,5 +784,107 @@ function formatDate(dateString) {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+/**
+ * Open manage manufacturers modal
+ */
+function openManageManufacturersModal() {
+    loadManufacturersList();
+    const form = document.getElementById('add-manufacturer-form');
+    if (form) {
+        form.reset();
+    }
+    const modal = document.getElementById('manage-manufacturers-modal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+}
+
+/**
+ * Load manufacturers list
+ */
+function loadManufacturersList() {
+    const manufacturers = manufacturerStorage.getAll();
+    const manufacturersList = document.getElementById('manufacturers-list');
+    
+    manufacturersList.innerHTML = '';
+    
+    if (manufacturers.length === 0) {
+        manufacturersList.innerHTML = '<p class="empty-message">メーカーが登録されていません</p>';
+        return;
+    }
+
+    manufacturers.forEach(manufacturer => {
+        const item = document.createElement('div');
+        item.className = 'type-item';
+        item.innerHTML = `
+            <span class="type-name">${escapeHtml(manufacturer.name)}</span>
+            <button class="btn btn-danger btn-small delete-manufacturer-btn" data-manufacturer-id="${manufacturer.id}">削除</button>
+        `;
+        
+        item.querySelector('.delete-manufacturer-btn').addEventListener('click', () => {
+            if (confirm(`「${manufacturer.name}」を削除しますか？`)) {
+                deleteManufacturer(manufacturer.id);
+            }
+        });
+        
+        manufacturersList.appendChild(item);
+    });
+}
+
+/**
+ * Add manufacturer
+ */
+function addManufacturer() {
+    const nameInput = document.getElementById('new-manufacturer-name');
+    if (!nameInput) return;
+    
+    const name = nameInput.value.trim();
+    if (!name) {
+        alert('メーカー名を入力してください');
+        return;
+    }
+
+    // メーカーを追加
+    manufacturerStorage.add({ name });
+    
+    // 入力フィールドをクリア
+    nameInput.value = '';
+    
+    // メーカーリストを更新
+    loadManufacturersList();
+    
+    // 種類管理画面のメーカー選択プルダウンを更新
+    updateAllTypePartManufacturerSelects();
+    
+    // メーカー管理モーダルを開いたままにする（閉じない）
+    // 種類管理モーダルも開いたままにする
+}
+
+/**
+ * Update all manufacturer selects in type part forms
+ */
+function updateAllTypePartManufacturerSelects() {
+    document.querySelectorAll('.type-part-manufacturer-select').forEach(select => {
+        loadManufacturerOptionsForType(select);
+    });
+}
+
+/**
+ * Delete manufacturer
+ */
+function deleteManufacturer(manufacturerId) {
+    // 使用中のパーツがあるかチェック
+    const parts = partStorage.getAll();
+    const inUse = parts.some(part => part.manufacturerId === manufacturerId);
+    
+    if (inUse) {
+        alert('このメーカーを使用しているパーツがあるため削除できません');
+        return;
+    }
+
+    manufacturerStorage.remove(manufacturerId);
+    loadManufacturersList();
 }
 
