@@ -287,6 +287,100 @@ window.showPage = showPage;
 window.closeModal = closeModal;
 window.showDroneDetail = showDroneDetail;
 
+/**
+ * Cookieを取得する
+ * @param {string} name - Cookie名
+ * @returns {string|null} Cookieの値、存在しない場合はnull
+ */
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) {
+        return parts.pop().split(';').shift();
+    }
+    return null;
+}
+
+/**
+ * Cookieを設定する
+ * @param {string} name - Cookie名
+ * @param {string} value - Cookieの値
+ * @param {number} days - 有効期限（日数）
+ */
+function setCookie(name, value, days) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    const expires = `expires=${date.toUTCString()}`;
+    document.cookie = `${name}=${value};${expires};path=/`;
+}
+
+/**
+ * テーマを初期化する（Cookieから復元）
+ */
+function initTheme() {
+    const savedTheme = getCookie('theme');
+    const theme = savedTheme || 'light';
+    applyTheme(theme);
+    updateThemeButton(theme);
+}
+
+/**
+ * テーマを適用する
+ * @param {string} theme - 'light' または 'dark'
+ */
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+}
+
+/**
+ * テーマ切り替えボタンの表示を更新する
+ * @param {string} theme - 現在のテーマ
+ */
+function updateThemeButton(theme) {
+    const themeIcon = document.getElementById('theme-icon');
+    const themeText = document.getElementById('theme-text');
+    
+    if (!themeIcon || !themeText) {
+        return; // 要素が存在しない場合は何もしない
+    }
+    
+    if (theme === 'dark') {
+        themeIcon.textContent = '☀️';
+        themeText.textContent = 'ライト';
+    } else {
+        themeIcon.textContent = '🌙';
+        themeText.textContent = 'ダーク';
+    }
+}
+
+/**
+ * テーマを切り替える
+ */
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    
+    applyTheme(newTheme);
+    setCookie('theme', newTheme, 365);
+    updateThemeButton(newTheme);
+}
+
+/**
+ * テーマ切り替えボタンのイベントリスナーを設定
+ */
+function setupThemeToggle() {
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', toggleTheme);
+    }
+}
+
 // アプリケーション初期化
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+    // テーマを最初に初期化（DOMが読み込まれた直後）
+    initTheme();
+    setupThemeToggle();
+    // その後、他の初期化処理を実行
+    init();
+});
 

@@ -30,10 +30,13 @@ function setupEventListeners() {
         openManageTypesModal();
     });
 
-    // メーカー管理ボタン
-    document.getElementById('manage-manufacturers-btn').addEventListener('click', () => {
-        openManageManufacturersModal();
-    });
+    // メーカー管理ボタン（存在する場合のみ）
+    const manageManufacturersBtn = document.getElementById('manage-manufacturers-btn');
+    if (manageManufacturersBtn) {
+        manageManufacturersBtn.addEventListener('click', () => {
+            openManageManufacturersModal();
+        });
+    }
 
     // 種類フィルター
     document.getElementById('type-filter').addEventListener('change', (e) => {
