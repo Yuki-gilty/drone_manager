@@ -47,11 +47,75 @@
     <main class="main-content">
         <!-- ホーム画面 -->
         <div id="home-page" class="page active">
-            <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
+            <div class="page-header" style="margin-bottom: 2rem;">
                 <div>
                     <p style="color: var(--text-muted); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem;">Overview</p>
-                    <h2>登録機体一覧</h2>
+                    <h2>ダッシュボード</h2>
                 </div>
+            </div>
+
+            <!-- 統計情報カード -->
+            <div id="stats-section" class="stats-grid" style="margin-bottom: 2.5rem;">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
+                        <i data-lucide="navigation" size="24"></i>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">登録機体数</p>
+                        <p class="stat-value" id="stat-drones-count">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
+                        <i data-lucide="calendar" size="24"></i>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">練習予定数</p>
+                        <p class="stat-value" id="stat-parts-count">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+                        <i data-lucide="wrench" size="24"></i>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">修理履歴</p>
+                        <p class="stat-value" id="stat-repairs-count">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6, #a78bfa);">
+                        <i data-lucide="tag" size="24"></i>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">カテゴリー数</p>
+                        <p class="stat-value" id="stat-types-count">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- クイックアクション -->
+            <div class="quick-actions-section" style="margin-bottom: 2.5rem;">
+                <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-main);">クイックアクション</h3>
+                <div class="quick-actions-grid">
+                    <button class="quick-action-card" id="quick-add-drone">
+                        <i data-lucide="plus-circle" size="28" style="color: var(--primary);"></i>
+                        <span>機体を追加</span>
+                    </button>
+                    <button class="quick-action-card" id="quick-manage-types">
+                        <i data-lucide="settings-2" size="28" style="color: var(--secondary);"></i>
+                        <span>カテゴリー管理</span>
+                    </button>
+                    <button class="quick-action-card" id="quick-calendar">
+                        <i data-lucide="calendar" size="28" style="color: #10b981;"></i>
+                        <span>カレンダーを開く</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 機体一覧セクション -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--text-main);">登録機体一覧</h3>
                 <div class="header-actions">
                     <div style="position: relative;">
                         <select id="type-filter" class="form-group" style="margin-bottom: 0; padding-right: 2.5rem; appearance: none;">
@@ -123,6 +187,11 @@
                 <div class="form-group"><label>機体名</label><input type="text" id="drone-name" placeholder="機体名を入力" required></div>
                 <div class="form-group"><label>カテゴリー</label><select id="drone-type" required></select></div>
                 <div class="form-group"><label>使用開始日</label><input type="date" id="drone-start-date" required></div>
+                <div class="form-group">
+                    <label>写真（任意）</label>
+                    <input type="file" id="drone-photo" accept="image/*">
+                    <div id="photo-preview" style="margin-top: 0.75rem;"></div>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('add-drone-modal')">キャンセル</button>
                     <button type="submit" class="btn btn-primary">登録する</button>
@@ -165,6 +234,60 @@
                     <button type="button" class="btn btn-secondary" onclick="closeModal('add-part-modal')">キャンセル</button>
                     <button type="submit" class="btn btn-primary">追加</button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 練習日追加モーダル -->
+    <div id="add-practice-modal" class="modal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>練習日を追加</h3>
+                <span class="close"><i data-lucide="x" size="20"></i></span>
+            </div>
+            <form id="add-practice-form">
+                <div class="form-group">
+                    <label>日付</label>
+                    <input type="date" id="practice-date" required>
+                </div>
+                <div class="form-group">
+                    <label>メモ（任意）</label>
+                    <textarea id="practice-note" rows="3" placeholder="メモを入力"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancel-add-practice" class="btn btn-secondary">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">追加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 予定詳細・削除モーダル -->
+    <div id="event-detail-modal" class="modal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 id="event-detail-title">予定詳細</h3>
+                <span class="close"><i data-lucide="x" size="20"></i></span>
+            </div>
+            <div id="event-detail-content" style="margin-bottom: 1.5rem;"></div>
+            <div class="form-actions">
+                <button type="button" id="cancel-event-detail" class="btn btn-secondary">閉じる</button>
+                <button type="button" id="delete-event-btn" class="btn" style="background: #ef4444; color: white;">削除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- メーカー管理モーダル -->
+    <div id="manage-manufacturers-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>メーカー管理</h3>
+                <span class="close"><i data-lucide="x" size="20"></i></span>
+            </div>
+            <div id="manufacturers-list" style="margin-bottom: 1.5rem;"></div>
+            <form id="add-manufacturer-form" style="display: flex; gap: 0.5rem;">
+                <input type="text" id="new-manufacturer-name" placeholder="新しいメーカー名" required style="flex: 1;">
+                <button type="submit" class="btn btn-primary">追加</button>
             </form>
         </div>
     </div>

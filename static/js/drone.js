@@ -2,7 +2,7 @@
  * Drone management module
  */
 
-import { droneStorage, droneTypeStorage, partStorage, repairStorage, manufacturerStorage } from './storage.js';
+import { droneStorage, droneTypeStorage, partStorage, repairStorage, manufacturerStorage, practiceDayStorage } from './storage.js';
 
 let currentDroneId = null;
 let selectedTypeFilter = '';
@@ -14,6 +14,7 @@ export function initDroneManagement() {
     loadDroneList();
     loadTypeFilter();
     setupEventListeners();
+    updateStats();
 }
 
 /**
@@ -21,9 +22,16 @@ export function initDroneManagement() {
  */
 function setupEventListeners() {
     // 機体追加ボタン
-    document.getElementById('add-drone-btn').addEventListener('click', () => {
-        openAddDroneModal();
-    });
+    const addDroneBtn = document.getElementById('add-drone-btn');
+    if (addDroneBtn) {
+        addDroneBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openAddDroneModal();
+        });
+    } else {
+        console.error('add-drone-btn not found');
+    }
 
     // 種類管理ボタン
     document.getElementById('manage-types-btn').addEventListener('click', () => {
@@ -42,6 +50,30 @@ function setupEventListeners() {
     document.getElementById('type-filter').addEventListener('change', (e) => {
         selectedTypeFilter = e.target.value;
         loadDroneList();
+    });
+
+    // クイックアクション
+    const quickAddDroneBtn = document.getElementById('quick-add-drone');
+    if (quickAddDroneBtn) {
+        quickAddDroneBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openAddDroneModal();
+        });
+    } else {
+        console.error('quick-add-drone not found');
+    }
+
+    document.getElementById('quick-manage-types').addEventListener('click', () => {
+        openManageTypesModal();
+    });
+
+    document.getElementById('quick-calendar').addEventListener('click', () => {
+        if (window.showPage) {
+            window.showPage('calendar-page');
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelector('.nav-link[data-page="calendar"]').classList.add('active');
+        }
     });
 
     // 機体追加フォーム
@@ -77,20 +109,33 @@ function setupEventListeners() {
     setupModalClose('manage-types-modal');
     setupModalClose('manage-manufacturers-modal');
 
-    // 写真プレビュー
-    document.getElementById('drone-photo').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const preview = document.getElementById('photo-preview');
-                preview.innerHTML = `<img src="${event.target.result}" alt="プレビュー">`;
-            };
-            reader.readAsDataURL(file);
-        } else {
-            document.getElementById('photo-preview').innerHTML = '';
-        }
-    });
+    // 写真プレビュー（モーダルが開かれた時に設定）
+    setupPhotoPreview();
+}
+
+/**
+ * Update statistics
+ */
+export function updateStats() {
+    const statDronesCount = document.getElementById('stat-drones-count');
+    const statPartsCount = document.getElementById('stat-parts-count');
+    const statRepairsCount = document.getElementById('stat-repairs-count');
+    const statTypesCount = document.getElementById('stat-types-count');
+    
+    // ホーム画面が表示されていない場合は何もしない
+    if (!statDronesCount || !statPartsCount || !statRepairsCount || !statTypesCount) {
+        return;
+    }
+    
+    const drones = droneStorage.getAll();
+    const practiceDays = practiceDayStorage.getAll();
+    const repairs = repairStorage.getAll();
+    const types = droneTypeStorage.getAll();
+
+    statDronesCount.textContent = drones.length;
+    statPartsCount.textContent = practiceDays.length;
+    statRepairsCount.textContent = repairs.length;
+    statTypesCount.textContent = types.length;
 }
 
 /**
@@ -123,6 +168,9 @@ function loadDroneList() {
     
     // アイコンをレンダリング
     lucide.createIcons();
+    
+    // 統計情報を更新
+    updateStats();
 }
 
 /**
@@ -192,11 +240,54 @@ function loadTypeFilter() {
 /**
  * Open add drone modal
  */
+/**
+ * Setup photo preview
+ */
+function setupPhotoPreview() {
+    const photoInput = document.getElementById('drone-photo');
+    if (photoInput) {
+        photoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            const preview = document.getElementById('photo-preview');
+            if (!preview) return;
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    preview.innerHTML = `<img src="${event.target.result}" alt="プレビュー" style="max-width: 100%; max-height: 200px; border-radius: var(--radius-md); margin-top: 0.5rem;">`;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                preview.innerHTML = '';
+            }
+        });
+    }
+}
+
 function openAddDroneModal() {
-    loadTypeFilter();
-    document.getElementById('add-drone-form').reset();
-    document.getElementById('photo-preview').innerHTML = '';
-    document.getElementById('add-drone-modal').style.display = 'block';
+    try {
+        loadTypeFilter();
+        const form = document.getElementById('add-drone-form');
+        if (form) {
+            form.reset();
+        }
+        const photoPreview = document.getElementById('photo-preview');
+        if (photoPreview) {
+            photoPreview.innerHTML = '';
+        }
+        const modal = document.getElementById('add-drone-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            // アイコンを再レンダリング
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        } else {
+            console.error('add-drone-modal not found');
+        }
+    } catch (error) {
+        console.error('Error opening add drone modal:', error);
+    }
 }
 
 /**
@@ -259,6 +350,7 @@ async function addDrone() {
     
     // ホーム画面を表示してから一覧を更新
     showHomePage();
+    updateStats();
 }
 
 /**
@@ -507,6 +599,7 @@ function showHomePage() {
         window.showPage('home-page');
     }
     loadDroneList();
+    updateStats();
 }
 
 /**
@@ -514,15 +607,40 @@ function showHomePage() {
  */
 function setupModalClose(modalId, cancelButtonId = null) {
     const modal = document.getElementById(modalId);
-    const closeBtn = modal.querySelector('.close');
+    if (!modal) {
+        console.error(`Modal ${modalId} not found`);
+        return;
+    }
     
-    closeBtn.addEventListener('click', () => closeModal(modalId));
+    const closeBtn = modal.querySelector('.close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeModal(modalId);
+        });
+    } else {
+        console.warn(`Close button not found in modal ${modalId}`);
+    }
     
     if (cancelButtonId) {
-        document.getElementById(cancelButtonId).addEventListener('click', () => closeModal(modalId));
+        const cancelBtn = document.getElementById(cancelButtonId);
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                closeModal(modalId);
+            });
+        }
     }
 
-    window.addEventListener('click', (e) => {
+    // モーダルの背景をクリックした時に閉じる
+    modal.addEventListener('click', (e) => {
+        // モーダルコンテンツ内のクリックは無視
+        if (e.target.closest('.modal-content')) {
+            return;
+        }
+        
         // メーカー管理モーダルの場合は、種類管理モーダルを閉じないようにする
         if (modalId === 'manage-manufacturers-modal') {
             // メーカー管理モーダルが開いている場合、種類管理モーダルは閉じない
@@ -541,8 +659,9 @@ function setupModalClose(modalId, cancelButtonId = null) {
  * Close modal
  */
 function closeModal(modalId) {
-    if (window.closeModal) {
-        window.closeModal(modalId);
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'none';
     }
 }
 
@@ -552,7 +671,7 @@ function closeModal(modalId) {
 function openManageTypesModal() {
     loadTypesList();
     document.getElementById('add-type-form').reset();
-    document.getElementById('manage-types-modal').style.display = 'block';
+    document.getElementById('manage-types-modal').style.display = 'flex';
 }
 
 /**
@@ -626,9 +745,12 @@ function loadTypesList() {
                 <form class="add-type-part-form" data-type-id="${type.id}">
                     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                         <input type="text" class="type-part-name-input" placeholder="パーツ名" required style="flex: 2; min-width: 150px;">
-                        <select class="type-part-manufacturer-select" data-type-id="${type.id}" style="flex: 1; min-width: 120px;">
-                            <option value="">メーカー(任意)</option>
-                        </select>
+                        <div style="flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 0.125rem;">
+                            <select class="type-part-manufacturer-select" data-type-id="${type.id}" style="flex: 1; min-width: 120px;">
+                                <option value="">メーカー(任意)</option>
+                            </select>
+                            <a href="#" class="open-manufacturer-modal-link" style="font-size: 0.7rem; color: var(--text-muted); text-decoration: none; cursor: pointer; opacity: 0.7; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">+ メーカーを追加</a>
+                        </div>
                         <button type="submit" class="btn btn-primary btn-small">
                             <i data-lucide="plus" size="14"></i>
                             追加
@@ -661,6 +783,16 @@ function loadTypesList() {
         
         const manufacturerSelect = item.querySelector('.type-part-manufacturer-select');
         loadManufacturerOptionsForType(manufacturerSelect);
+        
+        // メーカー管理モーダルを開くリンクのイベントリスナー
+        const openManufacturerModalLink = item.querySelector('.open-manufacturer-modal-link');
+        if (openManufacturerModalLink) {
+            openManufacturerModalLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openManageManufacturersModal();
+            });
+        }
         
         item.querySelectorAll('.delete-type-part-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -843,6 +975,7 @@ function deleteDrone(droneId) {
 
     // 一覧ページに戻る
     showHomePage();
+    updateStats();
 }
 
 /**
@@ -881,7 +1014,7 @@ function openManageManufacturersModal() {
     }
     const modal = document.getElementById('manage-manufacturers-modal');
     if (modal) {
-        modal.style.display = 'block';
+        modal.style.display = 'flex';
     }
 }
 
@@ -902,8 +1035,16 @@ function loadManufacturersList() {
     manufacturers.forEach(manufacturer => {
         const item = document.createElement('div');
         item.className = 'type-item';
+        item.style.display = 'flex';
+        item.style.justifyContent = 'space-between';
+        item.style.alignItems = 'center';
+        item.style.padding = '0.75rem 1rem';
+        item.style.border = '1px solid var(--border-base)';
+        item.style.borderRadius = 'var(--radius-md)';
+        item.style.marginBottom = '0.5rem';
+        item.style.background = 'var(--bg-main)';
         item.innerHTML = `
-            <span class="type-name">${escapeHtml(manufacturer.name)}</span>
+            <span class="type-name" style="font-weight: 500;">${escapeHtml(manufacturer.name)}</span>
             <button class="btn btn-danger btn-small delete-manufacturer-btn" data-manufacturer-id="${manufacturer.id}">削除</button>
         `;
         

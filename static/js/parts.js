@@ -124,7 +124,7 @@ export function showPartDetail(partId) {
  */
 function openAddReplacementModal() {
     document.getElementById('add-replacement-form').reset();
-    document.getElementById('add-replacement-modal').style.display = 'block';
+    document.getElementById('add-replacement-modal').style.display = 'flex';
 }
 
 /**
@@ -166,7 +166,10 @@ function showPage(pageId) {
  * Close modal
  */
 function closeModal(modalId) {
-    if (window.closeModal) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'none';
+    } else if (window.closeModal) {
         window.closeModal(modalId);
     }
 }

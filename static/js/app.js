@@ -35,16 +35,45 @@ function init() {
 function setupNavigation() {
     document.querySelectorAll('.nav-link').forEach(link => {
         link.addEventListener('click', (e) => {
-            const page = e.target.dataset.page;
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // クリックされた要素がボタンでない場合、親要素を探す
+            const button = e.target.closest('.nav-link');
+            if (!button) return;
+            
+            const page = button.dataset.page;
             if (page === 'home') {
                 showPage('home-page');
             } else if (page === 'calendar') {
                 showPage('calendar-page');
+                // カレンダーを再レンダリング
+                import('./calendar.js').then(module => {
+                    // イベントリスナーを再設定
+                    if (module.reinitCalendarListeners) {
+                        module.reinitCalendarListeners();
+                    }
+                    // renderCalendar関数を直接呼び出す
+                    if (module.renderCalendar) {
+                        module.renderCalendar();
+                    } else if (window.renderCalendar) {
+                        window.renderCalendar();
+                    }
+                }).catch(err => {
+                    console.error('Error loading calendar module:', err);
+                    // フォールバック: window経由で呼び出す
+                    if (window.reinitCalendarListeners) {
+                        window.reinitCalendarListeners();
+                    }
+                    if (window.renderCalendar) {
+                        window.renderCalendar();
+                    }
+                });
             }
             
             // アクティブ状態を更新
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-            e.target.classList.add('active');
+            button.classList.add('active');
         });
     });
 }
@@ -56,7 +85,20 @@ function showPage(pageId) {
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
     });
-    document.getElementById(pageId).classList.add('active');
+    const targetPage = document.getElementById(pageId);
+    if (targetPage) {
+        targetPage.classList.add('active');
+        
+        // カレンダーページが表示された時にカレンダーを再レンダリング
+        if (pageId === 'calendar-page') {
+            if (window.reinitCalendarListeners) {
+                window.reinitCalendarListeners();
+            }
+            if (window.renderCalendar) {
+                window.renderCalendar();
+            }
+        }
+    }
 }
 
 /**
@@ -64,13 +106,16 @@ function showPage(pageId) {
  */
 function setupModals() {
     // パーツ追加モーダル
-    document.getElementById('add-part-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        addPart();
-    });
-    document.getElementById('cancel-add-part').addEventListener('click', () => {
-        closeModal('add-part-modal');
-    });
+    const addPartForm = document.getElementById('add-part-form');
+    if (addPartForm) {
+        addPartForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            addPart();
+        });
+    }
+    
+    // パーツ追加モーダルのクローズボタン
+    setupModalCloseButton('add-part-modal');
 
     // カスタムパーツ名入力の切り替え
     const useCustomPartNameLink = document.getElementById('use-custom-part-name');
@@ -88,35 +133,37 @@ function setupModals() {
     }
 
     // 交換履歴追加モーダル
-    document.getElementById('add-replacement-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        addReplacement();
-    });
-    document.getElementById('cancel-add-replacement').addEventListener('click', () => {
-        closeModal('add-replacement-modal');
-    });
+    const addReplacementForm = document.getElementById('add-replacement-form');
+    if (addReplacementForm) {
+        addReplacementForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            addReplacement();
+        });
+    }
+    setupModalCloseButton('add-replacement-modal');
 
     // 修理履歴追加モーダル
-    document.getElementById('add-repair-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        addRepair();
-    });
-    document.getElementById('cancel-add-repair').addEventListener('click', () => {
-        closeModal('add-repair-modal');
-    });
+    const addRepairForm = document.getElementById('add-repair-form');
+    if (addRepairForm) {
+        addRepairForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            addRepair();
+        });
+    }
+    setupModalCloseButton('add-repair-modal');
 
     // パーツ追加モーダルの開閉
     window.openAddPartModal = function() {
         document.getElementById('add-part-form').reset();
         loadPartNameOptions();
         document.getElementById('part-name-custom').style.display = 'none';
-        document.getElementById('add-part-modal').style.display = 'block';
+        document.getElementById('add-part-modal').style.display = 'flex';
     };
 
     // 修理履歴追加モーダルの開閉
     window.openAddRepairModal = function() {
         document.getElementById('add-repair-form').reset();
-        document.getElementById('add-repair-modal').style.display = 'block';
+        document.getElementById('add-repair-modal').style.display = 'flex';
     };
 }
 
@@ -281,10 +328,42 @@ function addRepair() {
 }
 
 /**
+ * Setup modal close button
+ */
+function setupModalCloseButton(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    
+    const closeBtn = modal.querySelector('.close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeModal(modalId);
+        });
+    }
+    
+    // モーダルの背景をクリックした時に閉じる
+    modal.addEventListener('click', (e) => {
+        // モーダルコンテンツ内のクリックは無視
+        if (e.target.closest('.modal-content')) {
+            return;
+        }
+        
+        if (e.target === modal) {
+            closeModal(modalId);
+        }
+    });
+}
+
+/**
  * Close modal
  */
 function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }
 
 // グローバルに公開
