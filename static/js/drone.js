@@ -106,7 +106,13 @@ function loadDroneList() {
     droneList.innerHTML = '';
 
     if (filteredDrones.length === 0) {
-        droneList.innerHTML = '<p class="empty-message">機体が登録されていません</p>';
+        droneList.innerHTML = `
+            <div class="empty-message" style="grid-column: 1/-1; padding: 4rem 2rem;">
+                <i data-lucide="package-open" size="48" style="margin-bottom: 1rem; opacity: 0.5;"></i>
+                <p>登録されている機体はありません</p>
+            </div>
+        `;
+        lucide.createIcons();
         return;
     }
 
@@ -114,6 +120,9 @@ function loadDroneList() {
         const card = createDroneCard(drone);
         droneList.appendChild(card);
     });
+    
+    // アイコンをレンダリング
+    lucide.createIcons();
 }
 
 /**
@@ -126,17 +135,27 @@ function createDroneCard(drone) {
 
     const photo = drone.photo 
         ? `<img src="${drone.photo}" alt="${drone.name}" class="drone-photo">`
-        : '<div class="drone-photo-placeholder">写真なし</div>';
+        : `
+            <div class="drone-photo-placeholder" style="display: flex; flex-direction: column; gap: 0.5rem; background: var(--bg-main);">
+                <i data-lucide="image" size="32" style="opacity: 0.3;"></i>
+                <span style="font-size: 0.75rem; font-weight: 500; opacity: 0.5;">NO IMAGE</span>
+            </div>
+        `;
 
     const type = droneTypeStorage.getById(drone.type);
     const typeName = type ? type.name : '不明';
 
     card.innerHTML = `
-        ${photo}
+        <div class="drone-photo-container">
+            ${photo}
+        </div>
         <div class="drone-card-info">
+            <span class="drone-type-badge">${escapeHtml(typeName)}</span>
             <h3>${escapeHtml(drone.name)}</h3>
-            <p class="drone-type">${escapeHtml(typeName)}</p>
-            <p class="drone-date">使用開始: ${formatDate(drone.startDate)}</p>
+            <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.75rem; font-weight: 500;">
+                <i data-lucide="calendar" size="14"></i>
+                <span>Started: ${formatDate(drone.startDate)}</span>
+            </div>
         </div>
     `;
 
@@ -321,59 +340,116 @@ export function showDroneDetail(droneId) {
 
     const detailContent = document.getElementById('drone-detail-content');
     detailContent.innerHTML = `
-        <div class="drone-detail-header">
-            ${drone.photo ? `<img src="${drone.photo}" alt="${drone.name}" class="drone-detail-photo">` : '<div class="drone-detail-photo-placeholder">写真なし</div>'}
+        <div class="drone-detail-header" style="display: grid; grid-template-columns: 300px 1fr; gap: 2.5rem; align-items: start; border-bottom: 1px solid var(--border-base); padding-bottom: 2.5rem; margin-bottom: 2.5rem;">
+            <div style="width: 100%; aspect-ratio: 1; border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-main); border: 1px solid var(--border-base);">
+                ${drone.photo ? `<img src="${drone.photo}" alt="${drone.name}" style="width: 100%; height: 100%; object-fit: cover;">` : `
+                    <div style="width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); gap: 0.75rem;">
+                        <i data-lucide="image" size="48" style="opacity: 0.2;"></i>
+                        <span style="font-weight: 500; opacity: 0.5;">NO PHOTO</span>
+                    </div>
+                `}
+            </div>
             <div class="drone-detail-info">
-                <h2>${escapeHtml(drone.name)}</h2>
-                <p><strong>種類:</strong> ${escapeHtml(typeName)}</p>
-                <p><strong>使用開始日:</strong> ${formatDate(drone.startDate)}</p>
-                <div style="margin-top: 1rem;">
-                    <button id="delete-drone-btn" class="btn btn-danger">機体を削除</button>
+                <span class="drone-type-badge">${escapeHtml(typeName)}</span>
+                <h2 style="font-size: 2.25rem; font-weight: 800; margin-bottom: 1.5rem; letter-spacing: -0.025em;">${escapeHtml(drone.name)}</h2>
+                
+                <div style="display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; color: var(--text-muted);">
+                        <i data-lucide="calendar-days" size="20"></i>
+                        <span style="font-weight: 500;">使用開始日: ${formatDate(drone.startDate)}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; color: var(--text-muted);">
+                        <i data-lucide="component" size="20"></i>
+                        <span style="font-weight: 500;">搭載パーツ: ${parts.length}個</span>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem;">
+                    <button id="delete-drone-btn" class="btn btn-danger">
+                        <i data-lucide="trash-2" size="18"></i>
+                        機体を削除
+                    </button>
                 </div>
             </div>
         </div>
 
-        <div class="drone-detail-section">
-            <div class="section-header">
-                <h3>使用中のパーツ</h3>
-                <button id="add-part-btn" class="btn btn-primary">パーツを追加</button>
+        <div class="drone-detail-section" style="margin-bottom: 3rem;">
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <i data-lucide="cpu" class="text-gradient"></i>
+                    <h3 style="font-size: 1.25rem; font-weight: 700;">使用中のパーツ</h3>
+                </div>
+                <button id="add-part-btn" class="btn btn-primary btn-small">
+                    <i data-lucide="plus" size="16"></i>
+                    パーツ追加
+                </button>
             </div>
-            <div id="parts-list" class="parts-list">
-                ${partsWithManufacturer.length === 0 ? '<p class="empty-message">パーツが登録されていません</p>' : ''}
+            <div id="parts-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+                ${partsWithManufacturer.length === 0 ? `
+                    <div class="empty-message" style="grid-column: 1/-1; background: var(--bg-main); border: 2px dashed var(--border-base); border-radius: var(--radius-md); padding: 2rem;">
+                        <p>パーツが登録されていません</p>
+                    </div>
+                ` : ''}
                 ${partsWithManufacturer.map(part => `
-                    <div class="part-item" data-part-id="${part.id}">
-                        <div class="part-item-info">
-                            <h4>${escapeHtml(part.name)}</h4>
-                            <p>${part.manufacturerName ? `<strong>メーカー:</strong> ${escapeHtml(part.manufacturerName)}<br>` : ''}使用開始: ${formatDate(part.startDate)}</p>
+                    <div class="part-item" style="background: var(--bg-main); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-base); display: flex; flex-direction: column; justify-content: space-between; gap: 1rem;">
+                        <div>
+                            <h4 style="font-weight: 700; margin-bottom: 0.5rem; color: var(--text-main);">${escapeHtml(part.name)}</h4>
+                            <div style="font-size: 0.8125rem; color: var(--text-muted); display: flex; flex-direction: column; gap: 0.25rem;">
+                                ${part.manufacturerName ? `
+                                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                        <i data-lucide="factory" size="12"></i>
+                                        <span>${escapeHtml(part.manufacturerName)}</span>
+                                    </div>
+                                ` : ''}
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <i data-lucide="clock" size="12"></i>
+                                    <span>${formatDate(part.startDate)}〜</span>
+                                </div>
+                            </div>
                         </div>
-                        <button class="btn btn-secondary view-part-btn" data-part-id="${part.id}">詳細</button>
+                        <button class="btn btn-secondary btn-small view-part-btn" data-part-id="${part.id}" style="width: 100%;">
+                            詳細を表示
+                        </button>
                     </div>
                 `).join('')}
             </div>
         </div>
 
         <div class="drone-detail-section">
-            <div class="section-header">
-                <h3>修理履歴</h3>
-                <button id="add-repair-btn" class="btn btn-primary">修理履歴を追加</button>
+            <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <i data-lucide="wrench" class="text-gradient"></i>
+                    <h3 style="font-size: 1.25rem; font-weight: 700;">修理・メンテナンス履歴</h3>
+                </div>
+                <button id="add-repair-btn" class="btn btn-primary btn-small">
+                    <i data-lucide="plus" size="16"></i>
+                    履歴を追加
+                </button>
             </div>
-            <div id="repairs-list" class="repairs-list">
-                ${repairs.length === 0 ? '<p class="empty-message">修理履歴がありません</p>' : ''}
+            <div id="repairs-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                ${repairs.length === 0 ? `
+                    <div class="empty-message" style="background: var(--bg-main); border: 2px dashed var(--border-base); border-radius: var(--radius-md); padding: 2rem;">
+                        <p>修理履歴はありません</p>
+                    </div>
+                ` : ''}
                 ${repairs.map(repair => {
                     const part = repair.partId ? partStorage.getById(repair.partId) : null;
                     return `
-                        <div class="repair-item">
-                            <div class="repair-date">${formatDate(repair.date)}</div>
-                            <div class="repair-content">
-                                <p>${escapeHtml(repair.description)}</p>
-                                ${part ? `<p class="repair-part">対象パーツ: ${escapeHtml(part.name)}</p>` : '<p class="repair-part">対象: 機体全体</p>'}
+                        <div class="repair-item" style="background: var(--bg-card); border-left: 4px solid var(--primary); padding: 1.25rem; border-radius: 0 var(--radius-md) var(--radius-md) 0; box-shadow: var(--shadow-sm); border-top: 1px solid var(--border-base); border-right: 1px solid var(--border-base); border-bottom: 1px solid var(--border-base);">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+                                <div style="font-weight: 700; color: var(--primary); font-size: 0.875rem;">${formatDate(repair.date)}</div>
+                                ${part ? `<span style="font-size: 0.75rem; background: var(--bg-main); padding: 0.2rem 0.6rem; border-radius: var(--radius-full); font-weight: 600; color: var(--text-muted); border: 1px solid var(--border-base);">${escapeHtml(part.name)}</span>` : '<span style="font-size: 0.75rem; background: var(--bg-main); padding: 0.2rem 0.6rem; border-radius: var(--radius-full); font-weight: 600; color: var(--primary); border: 1px solid var(--primary);">機体全体</span>'}
                             </div>
+                            <p style="font-size: 0.9375rem; line-height: 1.6; color: var(--text-main);">${escapeHtml(repair.description)}</p>
                         </div>
                     `;
                 }).join('')}
             </div>
         </div>
     `;
+
+    // アイコンをレンダリング
+    lucide.createIcons();
 
     // イベントリスナーを設定
     document.getElementById('add-part-btn').addEventListener('click', () => {
@@ -489,7 +565,11 @@ function loadTypesList() {
     typesList.innerHTML = '';
     
     if (types.length === 0) {
-        typesList.innerHTML = '<p class="empty-message">種類が登録されていません</p>';
+        typesList.innerHTML = `
+            <div class="empty-message" style="background: var(--bg-main); border: 2px dashed var(--border-base); border-radius: var(--radius-md); padding: 2rem;">
+                <p>カテゴリーが登録されていません</p>
+            </div>
+        `;
         return;
     }
 
@@ -497,61 +577,70 @@ function loadTypesList() {
         const defaultParts = type.defaultParts || [];
         const item = document.createElement('div');
         item.className = 'type-item-expandable';
+        item.style.marginBottom = '1rem';
         item.dataset.typeId = type.id;
         
         const isExpanded = item.dataset.expanded === 'true';
         
         item.innerHTML = `
-            <div class="type-item-header">
-                <span class="type-name">${escapeHtml(type.name)}</span>
-                <div class="type-item-actions">
+            <div class="type-item-header" style="background: var(--bg-main); border-radius: var(--radius-md); padding: 1rem; border: 1px solid var(--border-base); display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <i data-lucide="tag" size="18" style="color: var(--primary);"></i>
+                    <span class="type-name" style="font-weight: 700;">${escapeHtml(type.name)}</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); background: var(--border-base); padding: 0.1rem 0.5rem; border-radius: var(--radius-full);">${defaultParts.length}パーツ</span>
+                </div>
+                <div class="type-item-actions" style="display: flex; gap: 0.5rem;">
                     <button class="btn btn-secondary btn-small toggle-parts-btn" data-type-id="${type.id}">
-                        ${isExpanded ? 'パーツを閉じる' : 'パーツを管理'}
+                        <i data-lucide="${isExpanded ? 'chevron-up' : 'chevron-down'}" size="14"></i>
+                        ${isExpanded ? 'パーツを閉じる' : 'パーツ管理'}
                     </button>
-                    <button class="btn btn-danger btn-small delete-type-btn" data-type-id="${type.id}">削除</button>
+                    <button class="btn btn-danger btn-small delete-type-btn" data-type-id="${type.id}">
+                        <i data-lucide="trash-2" size="14"></i>
+                    </button>
                 </div>
             </div>
-            <div class="type-parts-section" style="display: ${isExpanded ? 'block' : 'none'};">
-                <div class="type-parts-list">
+            <div class="type-parts-section" style="display: ${isExpanded ? 'block' : 'none'}; padding: 1.25rem; border: 1px solid var(--border-base); border-top: none; border-radius: 0 0 var(--radius-md) var(--radius-md); background: var(--bg-card);">
+                <div class="type-parts-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem;">
                     ${defaultParts.length === 0 
-                        ? '<p class="empty-message" style="padding: 1rem; margin: 0;">パーツが登録されていません</p>'
+                        ? '<p class="empty-message" style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.875rem;">デフォルトパーツはありません</p>'
                         : defaultParts.map((part, index) => {
-                            // 互換性のため、文字列の場合はそのまま、オブジェクトの場合はnameを使用
                             const partName = typeof part === 'string' ? part : part.name;
                             const partObj = typeof part === 'string' ? { name: part, manufacturerId: null } : part;
                             const manufacturer = partObj.manufacturerId ? manufacturerStorage.getById(partObj.manufacturerId) : null;
                             const manufacturerName = manufacturer ? manufacturer.name : '';
                             return `
-                                <div class="type-part-item">
-                                    <div>
-                                        <span>${escapeHtml(partName)}</span>
-                                        ${manufacturerName ? `<span style="color: #7f8c8d; font-size: 0.875rem; margin-left: 0.5rem;">(${escapeHtml(manufacturerName)})</span>` : ''}
+                                <div class="type-part-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-main); border-radius: var(--radius-sm); border: 1px solid var(--border-base);">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <i data-lucide="component" size="14" style="color: var(--secondary);"></i>
+                                        <span style="font-weight: 500; font-size: 0.875rem;">${escapeHtml(partName)}</span>
+                                        ${manufacturerName ? `<span style="color: var(--text-muted); font-size: 0.75rem; background: var(--bg-card); padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid var(--border-base);">${escapeHtml(manufacturerName)}</span>` : ''}
                                     </div>
-                                    <button class="btn btn-danger btn-small delete-type-part-btn" data-type-id="${type.id}" data-part-index="${index}">削除</button>
+                                    <button class="btn btn-danger btn-small delete-type-part-btn" data-type-id="${type.id}" data-part-index="${index}" style="padding: 0.25rem; background: transparent; border: none;">
+                                        <i data-lucide="x" size="14"></i>
+                                    </button>
                                 </div>
                             `;
                         }).join('')
                     }
                 </div>
                 <form class="add-type-part-form" data-type-id="${type.id}">
-                    <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                        <div style="flex: 1;">
-                            <input type="text" class="type-part-name-input" placeholder="パーツ名を入力" required>
-                        </div>
-                        <div style="flex: 1;">
-                            <select class="type-part-manufacturer-select" data-type-id="${type.id}" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem;">
-                                <option value="">メーカー（任意）</option>
-                            </select>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-small">パーツを追加</button>
-                    </div>
-                    <div style="margin-top: 0.5rem; font-size: 0.875rem;">
-                        <a href="#" class="manage-manufacturers-link" style="color: #3498db; text-decoration: underline; cursor: pointer;">メーカーを管理</a>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <input type="text" class="type-part-name-input" placeholder="パーツ名" required style="flex: 2; min-width: 150px;">
+                        <select class="type-part-manufacturer-select" data-type-id="${type.id}" style="flex: 1; min-width: 120px;">
+                            <option value="">メーカー(任意)</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary btn-small">
+                            <i data-lucide="plus" size="14"></i>
+                            追加
+                        </button>
                     </div>
                 </form>
             </div>
         `;
         
+        // アイコンをレンダリング（個別に追加した後にも必要）
+        lucide.createIcons();
+
         // イベントリスナーを設定
         item.querySelector('.toggle-parts-btn').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -559,7 +648,7 @@ function loadTypesList() {
         });
         
         item.querySelector('.delete-type-btn').addEventListener('click', () => {
-            if (confirm(`「${type.name}」を削除しますか？`)) {
+            if (confirm(`カテゴリー「${type.name}」を削除しますか？`)) {
                 deleteDroneType(type.id);
             }
         });
@@ -570,28 +659,20 @@ function loadTypesList() {
             addTypePart(type.id);
         });
         
-        // メーカー選択肢を読み込む
         const manufacturerSelect = item.querySelector('.type-part-manufacturer-select');
         loadManufacturerOptionsForType(manufacturerSelect);
         
-        // メーカー管理リンクのイベントリスナー
-        const manageManufacturersLink = item.querySelector('.manage-manufacturers-link');
-        if (manageManufacturersLink) {
-            manageManufacturersLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                openManageManufacturersModal();
-            });
-        }
-        
         item.querySelectorAll('.delete-type-part-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const partIndex = parseInt(e.target.dataset.partIndex);
+                const partIndex = parseInt(e.currentTarget.dataset.partIndex);
                 deleteTypePart(type.id, partIndex);
             });
         });
         
         typesList.appendChild(item);
     });
+    
+    lucide.createIcons();
 }
 
 /**

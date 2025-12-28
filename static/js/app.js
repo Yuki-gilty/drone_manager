@@ -22,6 +22,11 @@ function init() {
     
     // モーダルの設定
     setupModals();
+
+    // Lucideアイコンの初期化
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
 }
 
 /**
@@ -337,19 +342,19 @@ function applyTheme(theme) {
  * @param {string} theme - 現在のテーマ
  */
 function updateThemeButton(theme) {
-    const themeIcon = document.getElementById('theme-icon');
-    const themeText = document.getElementById('theme-text');
+    const sunIcon = document.getElementById('theme-icon-sun');
+    const moonIcon = document.getElementById('theme-icon-moon');
     
-    if (!themeIcon || !themeText) {
-        return; // 要素が存在しない場合は何もしない
+    if (!sunIcon || !moonIcon) {
+        return;
     }
     
     if (theme === 'dark') {
-        themeIcon.textContent = '☀️';
-        themeText.textContent = 'ライト';
+        sunIcon.style.display = 'block';
+        moonIcon.style.display = 'none';
     } else {
-        themeIcon.textContent = '🌙';
-        themeText.textContent = 'ダーク';
+        sunIcon.style.display = 'none';
+        moonIcon.style.display = 'block';
     }
 }
 

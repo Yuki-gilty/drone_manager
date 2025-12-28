@@ -49,7 +49,7 @@ function renderCalendar() {
 
     // 月と年の表示を更新
     document.getElementById('current-month-year').textContent = 
-        `${year}年${month + 1}月`;
+        `${year}年 ${month + 1}月`;
 
     // カレンダーコンテナをクリア
     const container = document.getElementById('calendar-container');
@@ -74,7 +74,7 @@ function renderCalendar() {
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
 
-    // 空のセル（月の最初の日より前）
+    // 前月の残り（空のセル）
     for (let i = 0; i < startingDayOfWeek; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'calendar-day empty';
@@ -92,6 +92,20 @@ function renderCalendar() {
         const dayNumber = document.createElement('div');
         dayNumber.className = 'day-number';
         dayNumber.textContent = day;
+        
+        // 今日の日付をハイライト
+        const today = new Date();
+        if (year === today.getFullYear() && month === today.getMonth() && day === today.getDate()) {
+            dayNumber.style.color = 'var(--primary)';
+            dayNumber.style.background = 'rgba(99, 102, 241, 0.1)';
+            dayNumber.style.width = '24px';
+            dayNumber.style.height = '24px';
+            dayNumber.style.display = 'flex';
+            dayNumber.style.alignItems = 'center';
+            dayNumber.style.justifyContent = 'center';
+            dayNumber.style.borderRadius = '50%';
+        }
+        
         dayCell.appendChild(dayNumber);
 
         // イベント表示
@@ -99,10 +113,36 @@ function renderCalendar() {
         if (events.length > 0) {
             const eventsContainer = document.createElement('div');
             eventsContainer.className = 'day-events';
+            eventsContainer.style.display = 'flex';
+            eventsContainer.style.flexDirection = 'column';
+            eventsContainer.style.gap = '2px';
             
             events.forEach(event => {
                 const eventItem = document.createElement('div');
                 eventItem.className = `event-item event-${event.type}`;
+                eventItem.style.fontSize = '0.7rem';
+                eventItem.style.padding = '2px 4px';
+                eventItem.style.borderRadius = '2px';
+                eventItem.style.whiteSpace = 'nowrap';
+                eventItem.style.overflow = 'hidden';
+                eventItem.style.textOverflow = 'ellipsis';
+                
+                let bgColor, textColor;
+                if (event.type === 'practice') {
+                    bgColor = 'rgba(16, 185, 129, 0.1)';
+                    textColor = '#059669';
+                } else if (event.type === 'repair') {
+                    bgColor = 'rgba(239, 68, 68, 0.1)';
+                    textColor = '#dc2626';
+                } else {
+                    bgColor = 'rgba(99, 102, 241, 0.1)';
+                    textColor = '#4f46e5';
+                }
+                
+                eventItem.style.background = bgColor;
+                eventItem.style.color = textColor;
+                eventItem.style.borderLeft = `2px solid ${textColor}`;
+                
                 eventItem.textContent = event.label;
                 eventsContainer.appendChild(eventItem);
             });
@@ -114,6 +154,7 @@ function renderCalendar() {
     }
 
     container.appendChild(calendar);
+    lucide.createIcons();
 }
 
 /**
