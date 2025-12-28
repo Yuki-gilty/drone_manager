@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ドローンレース機体管理</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">ドローンレース機体管理</h1>
+            <div class="nav-links">
+                <button class="nav-link active" data-page="home">ホーム</button>
+                <button class="nav-link" data-page="calendar">カレンダー</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <!-- ホーム画面（機体一覧） -->
+        <div id="home-page" class="page active">
+            <div class="page-header">
+                <h2>機体一覧</h2>
+                <div class="header-actions">
+                    <select id="type-filter" class="filter-select">
+                        <option value="">すべての種類</option>
+                    </select>
+                    <button id="add-drone-btn" class="btn btn-primary">機体を追加</button>
+                    <button id="manage-types-btn" class="btn btn-secondary">種類を管理</button>
+                </div>
+            </div>
+            <div id="drone-list" class="drone-grid">
+                <!-- 機体カードがここに動的に追加されます -->
+            </div>
+        </div>
+
+        <!-- 機体詳細画面 -->
+        <div id="drone-detail-page" class="page">
+            <div class="page-header">
+                <button id="back-to-list" class="btn btn-secondary">← 一覧に戻る</button>
+                <h2 id="drone-detail-title">機体詳細</h2>
+            </div>
+            <div id="drone-detail-content" class="drone-detail">
+                <!-- 機体詳細情報がここに表示されます -->
+            </div>
+            <input type="hidden" id="current-drone-id" value="">
+        </div>
+
+        <!-- パーツ詳細画面 -->
+        <div id="part-detail-page" class="page">
+            <div class="page-header">
+                <button id="back-to-drone-detail" class="btn btn-secondary">← 機体詳細に戻る</button>
+                <h2 id="part-detail-title">パーツ詳細</h2>
+            </div>
+            <div id="part-detail-content" class="part-detail">
+                <!-- パーツ詳細情報がここに表示されます -->
+            </div>
+        </div>
+
+        <!-- カレンダー画面 -->
+        <div id="calendar-page" class="page">
+            <div class="page-header">
+                <h2>カレンダー</h2>
+                <div class="header-actions">
+                    <button id="prev-month" class="btn btn-secondary">← 前月</button>
+                    <span id="current-month-year" class="month-year"></span>
+                    <button id="next-month" class="btn btn-secondary">次月 →</button>
+                    <button id="add-practice-day" class="btn btn-primary">練習日を追加</button>
+                </div>
+            </div>
+            <div id="calendar-container" class="calendar-container">
+                <!-- カレンダーがここに表示されます -->
+            </div>
+        </div>
+    </main>
+
+    <!-- モーダル: 機体追加 -->
+    <div id="add-drone-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>機体を追加</h2>
+            <form id="add-drone-form">
+                <div class="form-group">
+                    <label for="drone-name">機体名 *</label>
+                    <input type="text" id="drone-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="drone-type">機体の種類 *</label>
+                    <select id="drone-type" required>
+                        <option value="">選択してください</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="drone-start-date">使用開始日 *</label>
+                    <input type="date" id="drone-start-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="drone-photo">機体の写真</label>
+                    <input type="file" id="drone-photo" accept="image/*">
+                    <div id="photo-preview" class="photo-preview"></div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-add-drone">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">追加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- モーダル: 種類管理 -->
+    <div id="manage-types-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>機体の種類を管理</h2>
+            <div class="types-list-container">
+                <div id="types-list" class="types-list">
+                    <!-- 種類リストがここに表示されます -->
+                </div>
+                <form id="add-type-form" class="add-type-form">
+                    <input type="text" id="new-type-name" placeholder="新しい種類名">
+                    <button type="submit" class="btn btn-primary">追加</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル: パーツ追加 -->
+    <div id="add-part-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>パーツを追加</h2>
+            <form id="add-part-form">
+                <div class="form-group">
+                    <label for="part-name">パーツ名 *</label>
+                    <input type="text" id="part-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="part-start-date">使用開始日 *</label>
+                    <input type="date" id="part-start-date" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-add-part">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">追加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- モーダル: 交換履歴追加 -->
+    <div id="add-replacement-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>交換履歴を追加</h2>
+            <form id="add-replacement-form">
+                <div class="form-group">
+                    <label for="replacement-date">交換日 *</label>
+                    <input type="date" id="replacement-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="replacement-description">内容 *</label>
+                    <textarea id="replacement-description" rows="4" required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-add-replacement">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">追加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- モーダル: 修理履歴追加 -->
+    <div id="add-repair-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>修理履歴を追加</h2>
+            <form id="add-repair-form">
+                <div class="form-group">
+                    <label for="repair-date">修理日 *</label>
+                    <input type="date" id="repair-date" required>
+                </div>
+                <div class="form-group">
+                    <label for="repair-description">内容 *</label>
+                    <textarea id="repair-description" rows="4" required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-add-repair">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">追加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- モーダル: 練習日追加 -->
+    <div id="add-practice-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>練習日を追加</h2>
+            <form id="add-practice-form">
+                <div class="form-group">
+                    <label for="practice-date">練習日 *</label>
+                    <input type="date" id="practice-date" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-add-practice">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">追加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
+
