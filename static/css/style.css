@@ -136,6 +136,20 @@ body {
     transform: translateY(-1px);
 }
 
+#theme-icon-moon {
+    width: 39px;
+    height: 32px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+}
+
+#theme-icon-sun {
+    width: 38px;
+    height: 32px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+}
+
 /* Main Content Layout */
 .main-content {
     max-width: 1200px;

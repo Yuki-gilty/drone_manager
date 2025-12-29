@@ -1,26 +1,41 @@
 #!/usr/bin/env python3
 """
-Flask server for drone manager with SQLite database and authentication
+Flask server for drone manager with PostgreSQL/SQLite database and authentication
 """
 from flask import Flask, render_template, send_from_directory, request, jsonify, session
 from flask_session import Session
 import os
 import json
-import sqlite3
 from datetime import datetime
 from database import (
-    init_db, get_db, require_auth, get_current_user_id,
+    init_db, get_db, get_cursor, is_postgres_conn, require_auth, get_current_user_id,
     create_user, verify_user, get_user_by_id
 )
+import psycopg2
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
 # セッション設定
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_PERMANENT'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = 2592000  # 30日間
-Session(app)
+secret_key = os.environ.get('SECRET_KEY')
+if not secret_key:
+    if os.environ.get('FLASK_ENV') == 'production' or os.environ.get('DATABASE_URL'):
+        raise ValueError('SECRET_KEY environment variable must be set in production')
+    secret_key = 'dev-secret-key-change-in-production'
+app.config['SECRET_KEY'] = secret_key
+
+# 本番環境（DATABASE_URLが設定されている場合）ではFlaskのデフォルトセッション（クッキーベース）、
+# 開発環境ではファイルシステムセッション
+database_url = os.environ.get('DATABASE_URL')
+if not database_url:
+    # 開発環境: ファイルシステムセッション
+    app.config['SESSION_TYPE'] = 'filesystem'
+    app.config['SESSION_PERMANENT'] = False
+    app.config['PERMANENT_SESSION_LIFETIME'] = 2592000  # 30日間
+    Session(app)
+else:
+    # 本番環境: Flaskのデフォルトセッション（クッキーベース）を使用
+    # flask-sessionは使用しない（Renderのファイルシステムは一時的）
+    app.config['PERMANENT_SESSION_LIFETIME'] = 2592000  # 30日間
 
 # データベース初期化
 init_db()
@@ -101,29 +116,32 @@ def get_drones():
     type_id = request.args.get('type_id')
     
     conn = get_db()
-    cursor = conn.cursor()
+    is_postgres = is_postgres_conn(conn)
+    cursor = get_cursor(conn)
+    
+    placeholder = '%s' if is_postgres else '?'
     
     if type_id:
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT d.*, dt.name as type_name
             FROM drones d
             JOIN drone_types dt ON d.type_id = dt.id
-            WHERE d.user_id = ? AND d.type_id = ?
+            WHERE d.user_id = {placeholder} AND d.type_id = {placeholder}
             ORDER BY d.created_at DESC
         ''', (user_id, type_id))
     else:
-        cursor.execute('''
+        cursor.execute(f'''
             SELECT d.*, dt.name as type_name
             FROM drones d
             JOIN drone_types dt ON d.type_id = dt.id
-            WHERE d.user_id = ?
+            WHERE d.user_id = {placeholder}
             ORDER BY d.created_at DESC
         ''', (user_id,))
     
     drones = []
     for row in cursor.fetchall():
         # パーツ一覧を取得
-        cursor.execute('SELECT id FROM parts WHERE drone_id = ?', (row['id'],))
+        cursor.execute(f'SELECT id FROM parts WHERE drone_id = {placeholder}', (row['id'],))
         part_ids = [p['id'] for p in cursor.fetchall()]
         
         drones.append({
@@ -138,6 +156,7 @@ def get_drones():
             'createdAt': row['created_at']
         })
     
+    cursor.close()
     conn.close()
     return jsonify(drones)
 
@@ -204,23 +223,33 @@ def create_drone():
             return jsonify({'error': '必須項目が不足しています'}), 400
         
         conn = get_db()
-        cursor = conn.cursor()
+        is_postgres = is_postgres_conn(conn)
+        cursor = get_cursor(conn)
+        placeholder = '%s' if is_postgres else '?'
         
         # 種類が存在するか確認
-        cursor.execute('SELECT id FROM drone_types WHERE id = ? AND user_id = ?', (type_id, user_id))
+        cursor.execute(f'SELECT id FROM drone_types WHERE id = {placeholder} AND user_id = {placeholder}', (type_id, user_id))
         if not cursor.fetchone():
+            cursor.close()
             conn.close()
             return jsonify({'error': '無効な機体種類です'}), 400
         
-        cursor.execute('''
-            INSERT INTO drones (user_id, name, type_id, start_date, photo, status)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (user_id, name, type_id, start_date, photo, status))
-        
-        drone_id = cursor.lastrowid
+        if is_postgres:
+            cursor.execute('''
+                INSERT INTO drones (user_id, name, type_id, start_date, photo, status)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (user_id, name, type_id, start_date, photo, status))
+            drone_id = cursor.fetchone()['id']
+        else:
+            cursor.execute('''
+                INSERT INTO drones (user_id, name, type_id, start_date, photo, status)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, name, type_id, start_date, photo, status))
+            drone_id = cursor.lastrowid
         
         # デフォルトパーツを追加
-        cursor.execute('SELECT default_parts FROM drone_types WHERE id = ?', (type_id,))
+        cursor.execute(f'SELECT default_parts FROM drone_types WHERE id = {placeholder}', (type_id,))
         type_row = cursor.fetchone()
         if type_row and type_row['default_parts']:
             default_parts = json.loads(type_row['default_parts'])
@@ -228,12 +257,19 @@ def create_drone():
                 part_name = part_data if isinstance(part_data, str) else part_data.get('name', '')
                 manufacturer_id = None if isinstance(part_data, str) else part_data.get('manufacturerId')
                 
-                cursor.execute('''
-                    INSERT INTO parts (user_id, drone_id, name, start_date, manufacturer_id, replacement_history)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (user_id, drone_id, part_name, start_date, manufacturer_id, '[]'))
+                if is_postgres:
+                    cursor.execute('''
+                        INSERT INTO parts (user_id, drone_id, name, start_date, manufacturer_id, replacement_history)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    ''', (user_id, drone_id, part_name, start_date, manufacturer_id, '[]'))
+                else:
+                    cursor.execute('''
+                        INSERT INTO parts (user_id, drone_id, name, start_date, manufacturer_id, replacement_history)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (user_id, drone_id, part_name, start_date, manufacturer_id, '[]'))
         
         conn.commit()
+        cursor.close()
         conn.close()
         
         return jsonify({'id': drone_id, 'message': '機体が追加されました'}), 201
@@ -1265,4 +1301,5 @@ def static_files(filename):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    debug = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=port, debug=debug)

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: drone-manager
+    runtime: python
+    plan: free
+    buildCommand: uv sync
+    startCommand: uv run gunicorn --bind 0.0.0.0:$PORT server:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_ENV
+        value: production
+    healthCheckPath: /
+
+databases:
+  - name: drone-manager-db
+    plan: free
+    databaseName: drone_manager
+    user: drone_manager_user
+
