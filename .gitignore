@@ -1,25 +1,16 @@
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-.venv/
-*.egg-info/
-dist/
-build/
+# OS files
 .DS_Store
 *.log
 
-# データベースファイル
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database files (local development)
 *.db
 *.sqlite
 *.sqlite3
-
-# セッションファイル
-flask_session/
 
 # SpecStory
 .specstory/
@@ -28,4 +19,20 @@ flask_session/
 .cursorindexingignore
 .cursor/
 .cursorrules
-drone_manager.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build outputs
+dist/
+build/
+*.min.js
+*.min.css
+
+# Temporary files
+*.tmp
+*.temp
