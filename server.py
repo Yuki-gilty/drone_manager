@@ -46,9 +46,13 @@ init_db()
 def register():
     """ユーザー登録"""
     data = request.get_json()
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
-    email = data.get('email', '').strip() or None
+    if not data:
+        return jsonify({'error': 'リクエストボディが空です'}), 400
+    
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    email_value = data.get('email')
+    email = email_value.strip() if email_value else None
     
     if not username or not password:
         return jsonify({'error': 'ユーザー名とパスワードは必須です'}), 400
@@ -72,8 +76,11 @@ def register():
 def login():
     """ログイン"""
     data = request.get_json()
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
+    if not data:
+        return jsonify({'error': 'リクエストボディが空です'}), 400
+    
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
     
     if not username or not password:
         return jsonify({'error': 'ユーザー名とパスワードを入力してください'}), 400
