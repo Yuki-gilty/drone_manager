@@ -198,11 +198,27 @@ CREATE POLICY "Users can manage own practice days" ON practice_days
 
 ## 7. 認証設定
 
-Supabaseダッシュボードの「Authentication」→「Settings」で以下を設定：
+Supabaseダッシュボードの「Authentication」で以下を設定：
 
-1. **Site URL**: 開発環境では `http://localhost:8000`
-2. **Redirect URLs**: 本番環境のURLを追加
-3. **Email Auth**: 有効化（デフォルトで有効）
+### 7.1 Email Provider設定
+
+**Authentication** → **Providers** → **Email**:
+
+1. **Enable Email Provider**: ON（デフォルトでON）
+2. **Confirm email**: **OFF**に設定（ローカル開発時）
+   - これにより、登録後すぐにログインできます
+   - 本番環境ではセキュリティ要件に応じてONにすることを推奨
+
+### 7.2 URL設定
+
+**Authentication** → **URL Configuration**:
+
+1. **Site URL**:
+   - 開発環境: `http://localhost:8000`
+   - 本番環境: `https://your-site.netlify.app`
+2. **Redirect URLs**:
+   - `http://localhost:8000/**`（開発用）
+   - `https://your-site.netlify.app/**`（本番用）
 
 ## 8. 動作確認
 

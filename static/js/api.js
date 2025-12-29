@@ -39,9 +39,15 @@ export const authAPI = {
      */
     async register(username, password, email = null) {
         try {
+            // Email is now required, so we should always have a valid email
+            if (!email) {
+                throw new Error('メールアドレスは必須です');
+            }
+            const finalEmail = email;
+
             // Supabase Authでユーザーを作成
             const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: email || `${username}@drone-manager.local`,
+                email: finalEmail,
                 password: password,
                 options: {
                     data: {
@@ -59,22 +65,47 @@ export const authAPI = {
             }
 
             // profilesテーブルにユーザー情報を保存
+            // 注意: Supabaseのトリガー関数で自動的に作成されるはずですが、
+            // フォールバックとして手動でINSERTを試みます
+            // トリガーで既に作成されている場合は、ON CONFLICTで無視されます
             const { error: profileError } = await supabase
                 .from('profiles')
-                .insert({
+                .upsert({
                     id: authData.user.id,
                     username: username,
                     email: email
+                }, {
+                    onConflict: 'id'
                 });
 
-            if (profileError && profileError.code !== '23505') {
-                // 既に存在する場合は無視
-                throw profileError;
+            if (profileError) {
+                // 既に存在する場合は無視（23505 = unique violation）
+                if (profileError.code === '23505') {
+                    // 既に存在する場合は無視して続行（トリガーで作成された可能性）
+                } else if (profileError.code === 'PGRST205') {
+                    // テーブルが存在しない場合は警告を出して続行
+                    console.warn('Profiles table not found. User registered but profile not saved. Please create the profiles table in Supabase.');
+                } else if (profileError.message && profileError.message.includes('row-level security')) {
+                    // RLSポリシー違反の場合は、トリガーで作成されるはずなので警告のみ
+                    console.warn('RLS policy violation on profile insert. Profile should be auto-created by trigger function.');
+                } else {
+                    // その他のエラーはスロー
+                    throw profileError;
+                }
             }
 
             // ユーザー情報を取得
-            const user = await this.getCurrentUser();
-            
+            let user = await this.getCurrentUser();
+
+            // profilesテーブルが存在しない場合、Supabase Authのユーザー情報から直接構築
+            if (!user && authData.user) {
+                user = {
+                    id: authData.user.id,
+                    username: authData.user.user_metadata?.username || username,
+                    email: authData.user.email || email
+                };
+            }
+
             return {
                 message: '登録が完了しました',
                 user: user
@@ -89,20 +120,36 @@ export const authAPI = {
      */
     async login(username, password) {
         try {
-            // まずprofilesテーブルからemailを取得
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('email')
-                .eq('username', username)
-                .single();
+            let userEmail = null;
 
-            if (profileError || !profile) {
+            // RPC関数を使用してusernameからemailを取得
+            // この関数はSECURITY DEFINERで定義されているため、RLSをバイパスできる
+            const { data: email, error: rpcError } = await supabase
+                .rpc('get_user_email_by_username', { p_username: username });
+
+            if (rpcError) {
+                console.error('RPC error:', rpcError);
+                // RPC関数が存在しない場合、直接クエリを試みる（フォールバック）
+                if (rpcError.code === 'PGRST202' || rpcError.message?.includes('function')) {
+                    console.warn('RPC function not found. Please run the SQL setup to create get_user_email_by_username function.');
+                    // 入力がメールアドレス形式かチェック
+                    if (username.includes('@')) {
+                        userEmail = username;
+                    } else {
+                        throw new Error('ログイン機能を使用するには、Supabaseでget_user_email_by_username関数を作成してください。または、ユーザー名の代わりにメールアドレスでログインしてください。');
+                    }
+                } else {
+                    throw new Error('ユーザー名またはパスワードが正しくありません');
+                }
+            } else if (!email) {
                 throw new Error('ユーザー名またはパスワードが正しくありません');
+            } else {
+                userEmail = email;
             }
 
             // Supabase Authでログイン
             const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-                email: profile.email || `${username}@drone-manager.local`,
+                email: userEmail,
                 password: password
             });
 
@@ -111,8 +158,17 @@ export const authAPI = {
             }
 
             // ユーザー情報を取得
-            const user = await this.getCurrentUser();
-            
+            let user = await this.getCurrentUser();
+
+            // profilesテーブルが存在しない場合、Supabase Authのユーザー情報から直接構築
+            if (!user && authData.user) {
+                user = {
+                    id: authData.user.id,
+                    username: authData.user.user_metadata?.username || username,
+                    email: authData.user.email
+                };
+            }
+
             return {
                 message: 'ログインに成功しました',
                 user: user

@@ -96,8 +96,9 @@
                     <input type="text" id="register-username" placeholder="ユーザー名を入力" required autocomplete="username">
                 </div>
                 <div class="form-group">
-                    <label>メールアドレス（任意）</label>
-                    <input type="email" id="register-email" placeholder="メールアドレスを入力" autocomplete="email">
+                    <label>メールアドレス</label>
+                    <input type="email" id="register-email" placeholder="メールアドレスを入力" autocomplete="email" required>
+                    <small style="color: var(--text-muted); font-size: 0.75rem;">実際のメールアドレスを入力してください（Supabaseの設定により必須です）</small>
                 </div>
                 <div class="form-group">
                     <label>パスワード</label>
@@ -378,6 +379,8 @@
                 window.VITE_SUPABASE_URL = urlMeta.getAttribute('content');
                 window.VITE_SUPABASE_ANON_KEY = keyMeta.getAttribute('content');
             }
+            // Note: For local development, set these via meta tags or environment variables
+            // Do not hardcode credentials here for security reasons
         }
     </script>
     <script type="module" src="/static/js/app.js"></script>

@@ -1,5 +1,7 @@
 # 実装進捗状況
 
+**最終更新**: 2025-12-29
+
 ## 実装完了項目
 
 ### ✅ Phase 1: 環境準備
@@ -30,12 +32,20 @@
 ### ✅ Phase 4: セキュリティ
 - [x] RLSポリシーSQLスクリプト作成 (`docs/supabase_rls_policies.sql`)
 - [x] すべてのテーブルに対するRLSポリシー設計
+- [x] 完全なSupabaseセットアップSQL作成 (`docs/supabase_complete_setup.sql`)
 
 ### ✅ Phase 5: ドキュメント
 - [x] README更新 (Supabase + Netlify構成に対応)
 - [x] Supabaseセットアップガイド作成 (`docs/SUPABASE_SETUP.md`)
 - [x] デプロイメントガイド作成 (`docs/DEPLOYMENT.md`)
 - [x] アーキテクチャドキュメント作成 (`docs/ARCHITECTURE.md`)
+- [x] ローカル開発ガイド作成 (`docs/LOCAL_DEVELOPMENT.md`)
+
+### ✅ Phase 6: ローカル開発環境対応
+- [x] ローカル開発用HTMLファイル作成 (`templates/index-local.html`)
+- [x] Supabase認証情報のmetaタグ対応
+- [x] `.gitignore`にローカル専用ファイルを追加
+- [x] RPC関数によるログイン処理の改善 (`get_user_email_by_username`)
 
 ## 実装済みファイル
 
@@ -44,16 +54,20 @@
 - `docs/ARCHITECTURE.md` - アーキテクチャ設計書
 - `docs/SUPABASE_SETUP.md` - Supabaseセットアップガイド
 - `docs/DEPLOYMENT.md` - デプロイメントガイド
+- `docs/LOCAL_DEVELOPMENT.md` - ローカル開発ガイド
 - `docs/supabase_rls_policies.sql` - RLSポリシーSQL
+- `docs/supabase_complete_setup.sql` - 完全なSupabaseセットアップSQL（テーブル、RLS、トリガー、RPC関数）
 - `.env.example` - 環境変数テンプレート
 - `netlify.toml` - Netlify設定ファイル
 - `SUPABASE_MIGRATION.md` - 移行計画書
+- `templates/index-local.html` - ローカル開発用HTMLファイル（認証情報含む、gitignore対象）
 
 ### 更新ファイル
-- `static/js/api.js` - Supabase REST APIに書き換え
+- `static/js/api.js` - Supabase REST APIに書き換え、RPC関数対応
 - `static/js/auth.js` - Supabase Authに移行
 - `templates/index.html` - 環境変数サポート追加
 - `README.md` - Supabase + Netlify構成に対応
+- `.gitignore` - ローカル開発用ファイルを除外
 
 ## 次のステップ（ユーザー作業）
 

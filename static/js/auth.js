@@ -145,28 +145,34 @@ export async function initAuth() {
             const email = emailInput ? emailInput.value.trim() || null : null;
             const password = document.getElementById('register-password').value;
             const errorDiv = document.getElementById('register-error');
-            
+
             errorDiv.style.display = 'none';
             errorDiv.textContent = '';
-            
+
             if (!username) {
                 errorDiv.textContent = 'ユーザー名は必須です';
                 errorDiv.style.display = 'block';
                 return;
             }
-            
+
+            if (!email) {
+                errorDiv.textContent = 'メールアドレスは必須です';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
             if (!password) {
                 errorDiv.textContent = 'パスワードは必須です';
                 errorDiv.style.display = 'block';
                 return;
             }
-            
+
             if (password.length < 8) {
                 errorDiv.textContent = 'パスワードは8文字以上である必要があります';
                 errorDiv.style.display = 'block';
                 return;
             }
-            
+
             try {
                 const result = await authAPI.register(username, password, email);
                 if (result && result.user) {
