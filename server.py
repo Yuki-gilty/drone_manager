@@ -45,32 +45,48 @@ init_db()
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     """ユーザー登録"""
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'リクエストボディが空です'}), 400
-    
-    username = (data.get('username') or '').strip()
-    password = data.get('password') or ''
-    email_value = data.get('email')
-    email = email_value.strip() if email_value else None
-    
-    if not username or not password:
-        return jsonify({'error': 'ユーザー名とパスワードは必須です'}), 400
-    
-    if len(password) < 8:
-        return jsonify({'error': 'パスワードは8文字以上である必要があります'}), 400
-    
-    user_id = create_user(username, password, email)
-    if user_id is None:
-        return jsonify({'error': 'このユーザー名は既に使用されています'}), 400
-    
-    session['user_id'] = user_id
-    session.permanent = True
-    
-    return jsonify({
-        'message': '登録が完了しました',
-        'user': get_user_by_id(user_id)
-    }), 201
+    try:
+        if not request.is_json:
+            return jsonify({'error': 'Content-Type must be application/json'}), 400
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'リクエストボディが空です'}), 400
+        
+        username = (data.get('username') or '').strip()
+        password = data.get('password') or ''
+        email_value = data.get('email')
+        email = email_value.strip() if email_value and isinstance(email_value, str) else None
+        
+        if not username:
+            return jsonify({'error': 'ユーザー名は必須です'}), 400
+        
+        if not password:
+            return jsonify({'error': 'パスワードは必須です'}), 400
+        
+        if len(password) < 8:
+            return jsonify({'error': 'パスワードは8文字以上である必要があります'}), 400
+        
+        user_id = create_user(username, password, email)
+        if user_id is None:
+            return jsonify({'error': 'このユーザー名は既に使用されています'}), 400
+        
+        session['user_id'] = user_id
+        session.permanent = True
+        
+        user = get_user_by_id(user_id)
+        if not user:
+            return jsonify({'error': 'ユーザー情報の取得に失敗しました'}), 500
+        
+        return jsonify({
+            'message': '登録が完了しました',
+            'user': user
+        }), 201
+    except Exception as e:
+        import traceback
+        print(f'Error in register: {str(e)}')
+        print(traceback.format_exc())
+        return jsonify({'error': f'サーバーエラーが発生しました: {str(e)}'}), 500
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
