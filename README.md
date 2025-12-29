@@ -1,4 +1,4 @@
-# ドローンレース機体管理Webアプリ（POC）
+# ドローンレース機体管理Webアプリ
 
 ドローンレースで使用する複数の機体（5〜10機）を効率的に管理するためのWebアプリケーションです。
 
@@ -14,46 +14,97 @@
 ## 技術スタック
 
 - **フロントエンド**: HTML/CSS/バニラJavaScript（ES6+ モジュール）
-- **バックエンド**: Python Flask（RESTful API）
-- **データベース**: SQLite
-- **認証**: Flask-Session（セッション管理）
-- **写真保存**: Base64エンコードしてデータベースに保存
+- **バックエンド**: Supabase（PostgreSQL + REST API + Auth）
+- **ホスティング**: Netlify（静的ホスティング）
+- **データベース**: Supabase PostgreSQL
+- **認証**: Supabase Auth（JWT トークンベース）
+- **セキュリティ**: Row Level Security (RLS)
+
+## アーキテクチャ
+
+このアプリケーションはサーバーレスアーキテクチャを採用しています：
+
+```
+[HTML/CSS/JS] → Netlify (静的ホスティング)
+    ↓
+[Supabase REST API + Auth]
+    ↓
+[Supabase PostgreSQL]
+```
+
+詳細は [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) を参照してください。
 
 ## セットアップ
 
 ### 前提条件
 
-- Python 3.11以上
-- [UV](https://github.com/astral-sh/uv) パッケージマネージャー
+- Supabaseアカウント（無料プランで利用可能）
+- Netlifyアカウント（無料プランで利用可能）
+- 静的ファイルサーバー（開発用、オプション）
 
-### インストール手順
+### 1. Supabaseプロジェクトの作成
 
-1. プロジェクトディレクトリに移動:
+1. [Supabase](https://supabase.com) でアカウントを作成
+2. 新しいプロジェクトを作成
+3. プロジェクトのAPI認証情報を取得（Settings → API）
+
+詳細は [docs/SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) を参照してください。
+
+### 2. データベーススキーマの作成
+
+Supabaseダッシュボードの「SQL Editor」で以下のSQLを実行：
+
+1. テーブル作成: [docs/SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) の「データベーススキーマの作成」セクションを参照
+2. RLSポリシー設定: [docs/supabase_rls_policies.sql](./docs/supabase_rls_policies.sql) を実行
+
+### 3. 環境変数の設定
+
+`.env.example`を`.env`にコピーし、Supabaseの認証情報を設定：
+
 ```bash
-cd drone_manager
+cp .env.example .env
 ```
 
-2. UVで依存関係をインストール:
+`.env`ファイルを編集：
 ```bash
-uv sync
+VITE_SUPABASE_URL=https://[PROJECT_REF].supabase.co
+VITE_SUPABASE_ANON_KEY=[YOUR_ANON_KEY]
 ```
 
-3. サーバーを起動:
+### 4. ローカル開発環境（オプション）
+
+静的ファイルを配信するための簡単なHTTPサーバーを使用：
+
 ```bash
-uv run python server.py
+# Python 3の場合
+python -m http.server 8000
+
+# Node.jsの場合
+npx serve .
+
+# または、VS CodeのLive Server拡張機能を使用
 ```
 
-4. ブラウザでアクセス:
-```
-http://localhost:8000
-```
+ブラウザで `http://localhost:8000` にアクセス
 
-5. 初回アクセス時は新規ユーザー登録が必要です
-   - 「新規登録」ボタンをクリック
-   - ユーザー名、パスワード（8文字以上）、メールアドレス（任意）を入力
-   - 登録後、自動的にログインされます
+### 5. Netlifyへのデプロイ
+
+1. [Netlify](https://netlify.com) でアカウントを作成
+2. GitHubリポジトリと連携、または手動でデプロイ
+3. 環境変数を設定：
+   - `VITE_SUPABASE_URL`: SupabaseプロジェクトURL
+   - `VITE_SUPABASE_ANON_KEY`: Supabase Anon Key
+
+詳細は [netlify.toml](./netlify.toml) を参照してください。
 
 ## 使用方法
+
+### 初回アクセス
+
+1. アプリケーションにアクセス
+2. 「新規登録」ボタンをクリック
+3. ユーザー名、パスワード（8文字以上）、メールアドレス（任意）を入力
+4. 登録後、自動的にログインされます
 
 ### 機体の追加
 
@@ -63,7 +114,7 @@ http://localhost:8000
 
 ### 機体の種類の管理
 
-1. ホーム画面で「種類を管理」ボタンをクリック
+1. ホーム画面で「カテゴリー管理」ボタンをクリック
 2. 新しい種類を追加、または既存の種類を削除
 
 ### パーツの追加
@@ -90,26 +141,79 @@ http://localhost:8000
 2. 月次カレンダーでイベントを確認
 3. 「練習日を追加」ボタンで練習日を登録
 
-## データ移行
-
-既存のlocalStorageデータをSQLiteデータベースに移行する場合は、[MIGRATION.md](./MIGRATION.md)を参照してください。
-
-## 注意事項
-
-- データはSQLiteデータベース（`drone_manager.db`）に保存されます
-- ユーザーごとにデータが分離されます（マルチユーザー対応）
-- 写真はBase64形式でデータベースに保存されるため、大量の写真を保存するとデータベースサイズが大きくなる可能性があります
-- セッションは30日間有効です
-- 本番環境で使用する場合は、`SECRET_KEY`環境変数を設定してください
-
 ## セキュリティ
 
-- パスワードはハッシュ化して保存されます
-- SQLインジェクション対策としてパラメータ化クエリを使用
-- ユーザーは自分のデータのみアクセス可能（user_idでフィルタリング）
+- **Row Level Security (RLS)**: すべてのテーブルでRLSを有効化し、ユーザーは自分のデータのみアクセス可能
+- **Supabase Auth**: JWT トークンベースの認証
+- **パスワード**: Supabaseが自動的にハッシュ化して保存
+- **SQLインジェクション対策**: SupabaseのPostgRESTが自動的にパラメータ化クエリを使用
+
+## データベース
+
+データはSupabase PostgreSQLに保存されます。ユーザーごとにデータが分離され、RLSポリシーによって保護されています。
+
+### テーブル構造
+
+- `profiles`: ユーザープロファイル情報
+- `drone_types`: 機体の種類
+- `manufacturers`: メーカー情報
+- `drones`: 機体情報
+- `parts`: パーツ情報
+- `repairs`: 修理履歴
+- `practice_days`: 練習日
+
+詳細は [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) を参照してください。
+
+## 移行
+
+### FlaskサーバーからSupabaseへの移行
+
+既存のFlaskサーバーベースのアプリケーションから移行する場合は、[SUPABASE_MIGRATION.md](./SUPABASE_MIGRATION.md) を参照してください。
+
+## 開発
+
+### プロジェクト構造
+
+```
+drone_manager/
+├── docs/                    # ドキュメント
+│   ├── ARCHITECTURE.md      # アーキテクチャ設計書
+│   ├── SUPABASE_SETUP.md    # Supabaseセットアップガイド
+│   └── supabase_rls_policies.sql  # RLSポリシーSQL
+├── static/                  # 静的ファイル
+│   ├── css/                 # スタイルシート
+│   └── js/                  # JavaScriptモジュール
+│       ├── api.js           # Supabase API呼び出し
+│       ├── auth.js          # 認証管理
+│       ├── supabase.js      # Supabase Client初期化
+│       └── ...
+├── templates/               # HTMLテンプレート
+│   └── index.html
+├── .env.example            # 環境変数テンプレート
+├── netlify.toml            # Netlify設定
+└── README.md               # このファイル
+```
+
+### 環境変数
+
+開発環境では`.env`ファイルを使用し、本番環境（Netlify）では環境変数を設定します。
+
+## トラブルシューティング
+
+### 認証エラー
+
+- Supabaseの認証情報が正しく設定されているか確認
+- ブラウザのコンソールでエラーメッセージを確認
+
+### RLSポリシーエラー
+
+- SupabaseダッシュボードでRLSが有効になっているか確認
+- RLSポリシーが正しく作成されているか確認
+
+### CORSエラー
+
+- Supabaseダッシュボードの「Settings」→「API」でCORS設定を確認
 
 ## ライセンス
 
 このプロジェクトはPOCのため、ライセンスは特に指定されていません。
-
-
