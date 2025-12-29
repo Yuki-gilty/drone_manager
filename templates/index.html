@@ -3,243 +3,361 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ドローンレース機体管理</title>
+    <title>Drone Manager | 機体管理システム</title>
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
     <nav class="navbar">
         <div class="nav-container">
-            <h1 class="nav-title">ドローンレース機体管理</h1>
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <div class="nav-links">
-                    <button class="nav-link active" data-page="home">ホーム</button>
-                    <button class="nav-link" data-page="calendar">カレンダー</button>
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <i data-lucide="navigation" style="color: #6366f1;"></i>
+                <h1 class="nav-title">Drone Manager</h1>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 1.5rem;">
+                <div class="nav-links" id="nav-links" style="display: none;">
+                    <button class="nav-link active" data-page="home">
+                        <span style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="layout-grid" size="18"></i>
+                            ホーム
+                        </span>
+                    </button>
+                    <button class="nav-link" data-page="calendar">
+                        <span style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="calendar" size="18"></i>
+                            カレンダー
+                        </span>
+                    </button>
                 </div>
-                <button id="theme-toggle" class="theme-toggle" aria-label="テーマを切り替え">
-                    <span id="theme-icon">🌙</span>
-                    <span id="theme-text">ダーク</span>
+                
+                <div id="user-menu" style="display: none; align-items: center; gap: 1rem;">
+                    <span id="username-display" style="color: var(--text-muted); font-size: 0.875rem;"></span>
+                    <button id="logout-btn" class="btn btn-secondary btn-small">ログアウト</button>
+                </div>
+                
+                <button id="theme-toggle" class="theme-toggle" aria-label="テーマ切り替え" style="display: none;">
+                    <i id="theme-icon-sun" data-lucide="sun" style="display: none;"></i>
+                    <i id="theme-icon-moon" data-lucide="moon"></i>
                 </button>
             </div>
         </div>
     </nav>
 
-    <main class="main-content">
-        <!-- ホーム画面（機体一覧） -->
-        <div id="home-page" class="page active">
-            <div class="page-header">
-                <h2>機体一覧</h2>
-                <div class="header-actions">
-                    <select id="type-filter" class="filter-select">
-                        <option value="">すべての種類</option>
-                    </select>
-                    <button id="add-drone-btn" class="btn btn-primary">機体を追加</button>
-                    <button id="manage-types-btn" class="btn btn-secondary">種類を管理</button>
-                </div>
+    <!-- ログイン画面 -->
+    <div id="login-page" class="page active" style="display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 80px);">
+        <div style="background: var(--bg-card); padding: 3rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); max-width: 400px; width: 100%;">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <i data-lucide="navigation" size="48" style="color: var(--primary); margin-bottom: 1rem;"></i>
+                <h2 style="font-size: 1.75rem; font-weight: 800; margin-bottom: 0.5rem;">Drone Manager</h2>
+                <p style="color: var(--text-muted);">機体管理システムにログイン</p>
             </div>
-            <div id="drone-list" class="drone-grid">
-                <!-- 機体カードがここに動的に追加されます -->
+            
+            <div id="login-error" style="display: none; background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 0.75rem; border-radius: var(--radius-md); margin-bottom: 1rem; font-size: 0.875rem;"></div>
+            
+            <form id="login-form" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="form-group">
+                    <label>ユーザー名</label>
+                    <input type="text" id="login-username" placeholder="ユーザー名を入力" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label>パスワード</label>
+                    <input type="password" id="login-password" placeholder="パスワードを入力" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">ログイン</button>
+            </form>
+            
+            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-base);">
+                <p style="text-align: center; color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem;">アカウントをお持ちでない場合</p>
+                <button type="button" id="show-register" class="btn btn-secondary" style="width: 100%;">新規登録</button>
             </div>
         </div>
+    </div>
 
-        <!-- 機体詳細画面 -->
+    <!-- 新規登録画面 -->
+    <div id="register-page" class="page" style="display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 80px);">
+        <div style="background: var(--bg-card); padding: 3rem; border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); max-width: 400px; width: 100%;">
+            <div style="text-align: center; margin-bottom: 2rem;">
+                <i data-lucide="user-plus" size="48" style="color: var(--primary); margin-bottom: 1rem;"></i>
+                <h2 style="font-size: 1.75rem; font-weight: 800; margin-bottom: 0.5rem;">新規登録</h2>
+                <p style="color: var(--text-muted);">新しいアカウントを作成</p>
+            </div>
+            
+            <div id="register-error" style="display: none; background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 0.75rem; border-radius: var(--radius-md); margin-bottom: 1rem; font-size: 0.875rem;"></div>
+            
+            <form id="register-form" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="form-group">
+                    <label>ユーザー名</label>
+                    <input type="text" id="register-username" placeholder="ユーザー名を入力" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label>メールアドレス（任意）</label>
+                    <input type="email" id="register-email" placeholder="メールアドレスを入力" autocomplete="email">
+                </div>
+                <div class="form-group">
+                    <label>パスワード</label>
+                    <input type="password" id="register-password" placeholder="パスワードを入力（8文字以上）" required autocomplete="new-password" minlength="8">
+                    <small style="color: var(--text-muted); font-size: 0.75rem;">パスワードは8文字以上である必要があります</small>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">登録</button>
+            </form>
+            
+            <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-base);">
+                <p style="text-align: center; color: var(--text-muted); font-size: 0.875rem; margin-bottom: 0.75rem;">既にアカウントをお持ちの場合</p>
+                <button type="button" id="show-login" class="btn btn-secondary" style="width: 100%;">ログインに戻る</button>
+            </div>
+        </div>
+    </div>
+
+    <main class="main-content" id="main-content" style="display: none;">
+        <!-- ホーム画面 -->
+        <div id="home-page" class="page active">
+            <div class="page-header" style="margin-bottom: 2rem;">
+                <div>
+                    <p style="color: var(--text-muted); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem;">Overview</p>
+                    <h2>ダッシュボード</h2>
+                </div>
+            </div>
+
+            <!-- 統計情報カード -->
+            <div id="stats-section" class="stats-grid" style="margin-bottom: 2.5rem;">
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
+                        <i data-lucide="navigation" size="24"></i>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">登録機体数</p>
+                        <p class="stat-value" id="stat-drones-count">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
+                        <i data-lucide="calendar" size="24"></i>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">練習予定数</p>
+                        <p class="stat-value" id="stat-parts-count">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+                        <i data-lucide="wrench" size="24"></i>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">修理履歴</p>
+                        <p class="stat-value" id="stat-repairs-count">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #8b5cf6, #a78bfa);">
+                        <i data-lucide="tag" size="24"></i>
+                    </div>
+                    <div class="stat-content">
+                        <p class="stat-label">カテゴリー数</p>
+                        <p class="stat-value" id="stat-types-count">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- クイックアクション -->
+            <div class="quick-actions-section" style="margin-bottom: 2.5rem;">
+                <h3 style="font-size: 1.125rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-main);">クイックアクション</h3>
+                <div class="quick-actions-grid">
+                    <button class="quick-action-card" id="quick-add-drone">
+                        <i data-lucide="plus-circle" size="28" style="color: var(--primary);"></i>
+                        <span>機体を追加</span>
+                    </button>
+                    <button class="quick-action-card" id="quick-manage-types">
+                        <i data-lucide="settings-2" size="28" style="color: var(--secondary);"></i>
+                        <span>カテゴリー管理</span>
+                    </button>
+                    <button class="quick-action-card" id="quick-calendar">
+                        <i data-lucide="calendar" size="28" style="color: #10b981;"></i>
+                        <span>カレンダーを開く</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 機体一覧セクション -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--text-main);">登録機体一覧</h3>
+                <div class="header-actions">
+                    <div style="position: relative;">
+                        <select id="type-filter" class="form-group" style="margin-bottom: 0; padding-right: 2.5rem; appearance: none;">
+                            <option value="">すべてのカテゴリー</option>
+                        </select>
+                        <i data-lucide="chevron-down" size="16" style="position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;"></i>
+                    </div>
+                    <button id="add-drone-btn" class="btn btn-primary">
+                        <i data-lucide="plus" size="18"></i>
+                        機体を追加
+                    </button>
+                    <button id="manage-types-btn" class="btn btn-secondary">
+                        <i data-lucide="settings-2" size="18"></i>
+                        カテゴリー管理
+                    </button>
+                </div>
+            </div>
+            <div id="drone-list" class="drone-grid"></div>
+        </div>
+
+        <!-- 各種詳細画面 -->
         <div id="drone-detail-page" class="page">
             <div class="page-header">
-                <button id="back-to-list" class="btn btn-secondary">← 一覧に戻る</button>
+                <button id="back-to-list" class="btn btn-secondary" style="margin-bottom: 1.5rem;">
+                    <i data-lucide="arrow-left" size="18"></i> 一覧に戻る
+                </button>
                 <h2 id="drone-detail-title">機体詳細</h2>
             </div>
-            <div id="drone-detail-content" class="drone-detail">
-                <!-- 機体詳細情報がここに表示されます -->
-            </div>
+            <div id="drone-detail-content" class="detail-container"></div>
             <input type="hidden" id="current-drone-id" value="">
         </div>
 
-        <!-- パーツ詳細画面 -->
         <div id="part-detail-page" class="page">
             <div class="page-header">
-                <button id="back-to-drone-detail" class="btn btn-secondary">← 機体詳細に戻る</button>
+                <button id="back-to-drone-detail" class="btn btn-secondary" style="margin-bottom: 1.5rem;">
+                    <i data-lucide="arrow-left" size="18"></i> 機体詳細に戻る
+                </button>
                 <h2 id="part-detail-title">パーツ詳細</h2>
             </div>
-            <div id="part-detail-content" class="part-detail">
-                <!-- パーツ詳細情報がここに表示されます -->
-            </div>
+            <div id="part-detail-content" class="detail-container"></div>
         </div>
 
-        <!-- カレンダー画面 -->
         <div id="calendar-page" class="page">
-            <div class="page-header">
-                <h2>カレンダー</h2>
+            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <p style="color: var(--text-muted); font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem;">Schedule</p>
+                    <h2 id="current-month-year">カレンダー</h2>
+                </div>
                 <div class="header-actions">
-                    <button id="prev-month" class="btn btn-secondary">← 前月</button>
-                    <span id="current-month-year" class="month-year"></span>
-                    <button id="next-month" class="btn btn-secondary">次月 →</button>
-                    <button id="add-practice-day" class="btn btn-primary">練習日を追加</button>
+                    <div class="btn-group" style="display: flex; background: var(--border-base); padding: 0.25rem; border-radius: var(--radius-md);">
+                        <button id="prev-month" class="btn btn-secondary" style="border: none; background: transparent; box-shadow: none;"><i data-lucide="chevron-left" size="18"></i></button>
+                        <button id="next-month" class="btn btn-secondary" style="border: none; background: transparent; box-shadow: none;"><i data-lucide="chevron-right" size="18"></i></button>
+                    </div>
+                    <button id="add-practice-day" class="btn btn-primary"><i data-lucide="plus" size="18"></i> 練習日を追加</button>
                 </div>
             </div>
-            <div id="calendar-container" class="calendar-container">
-                <!-- カレンダーがここに表示されます -->
-            </div>
+            <div id="calendar-container" class="calendar-container"></div>
         </div>
     </main>
 
-    <!-- モーダル: 機体追加 -->
+    <!-- モーダル群 -->
     <div id="add-drone-modal" class="modal">
         <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>機体を追加</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>機体を追加</h3>
+                <span class="close"><i data-lucide="x" size="20"></i></span>
+            </div>
             <form id="add-drone-form">
+                <div class="form-group"><label>機体名</label><input type="text" id="drone-name" placeholder="機体名を入力" required></div>
+                <div class="form-group"><label>カテゴリー</label><select id="drone-type" required></select></div>
+                <div class="form-group"><label>使用開始日</label><input type="date" id="drone-start-date" required></div>
                 <div class="form-group">
-                    <label for="drone-name">機体名 *</label>
-                    <input type="text" id="drone-name" required>
-                </div>
-                <div class="form-group">
-                    <label for="drone-type">機体の種類 *</label>
-                    <select id="drone-type" required>
-                        <option value="">選択してください</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="drone-start-date">使用開始日 *</label>
-                    <input type="date" id="drone-start-date" required>
-                </div>
-                <div class="form-group">
-                    <label for="drone-photo">機体の写真</label>
+                    <label>写真（任意）</label>
                     <input type="file" id="drone-photo" accept="image/*">
-                    <div id="photo-preview" class="photo-preview"></div>
+                    <div id="photo-preview" style="margin-top: 0.75rem;"></div>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-add-drone">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">追加</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('add-drone-modal')">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">登録する</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- モーダル: 種類管理 -->
     <div id="manage-types-modal" class="modal">
         <div class="modal-content" style="max-width: 800px;">
-            <span class="close">&times;</span>
-            <h2>機体の種類を管理</h2>
-            <div class="types-list-container">
-                <div id="types-list" class="types-list">
-                    <!-- 種類リストがここに表示されます -->
-                </div>
-                <form id="add-type-form" class="add-type-form">
-                    <input type="text" id="new-type-name" placeholder="新しい種類名">
-                    <button type="submit" class="btn btn-primary">追加</button>
-                </form>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>カテゴリー管理</h3>
+                <span class="close"><i data-lucide="x" size="20"></i></span>
             </div>
+            <div id="types-list"></div>
+            <form id="add-type-form" style="margin-top: 1.5rem; display: flex; gap: 0.5rem;">
+                <input type="text" id="new-type-name" placeholder="新しいカテゴリー名" required>
+                <button type="submit" class="btn btn-primary">追加</button>
+            </form>
         </div>
     </div>
 
-    <!-- モーダル: パーツ追加 -->
+    <!-- 他のモーダルも同様に簡略化して配置 -->
     <div id="add-part-modal" class="modal">
         <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>パーツを追加</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>パーツを追加</h3>
+                <span class="close"><i data-lucide="x" size="20"></i></span>
+            </div>
             <form id="add-part-form">
                 <div class="form-group">
-                    <label for="part-name">パーツ名 *</label>
-                    <select id="part-name" required>
-                        <option value="">選択してください</option>
-                    </select>
-                    <div style="margin-top: 0.5rem; font-size: 0.875rem; color: #7f8c8d;">
-                        または <a href="#" id="use-custom-part-name" style="color: #3498db; text-decoration: underline; cursor: pointer;">カスタムパーツ名を入力</a>
-                    </div>
-                    <input type="text" id="part-name-custom" placeholder="カスタムパーツ名" style="display: none; margin-top: 0.5rem;">
+                    <label>パーツ名</label>
+                    <select id="part-name"></select>
+                    <input type="text" id="part-name-custom" style="display: none; margin-top: 0.5rem;" placeholder="カスタムパーツ名">
+                    <a href="#" id="use-custom-part-name" style="font-size: 0.75rem; color: var(--primary); margin-top: 0.25rem; display: inline-block;">カスタム入力に切り替え</a>
                 </div>
-                <div class="form-group">
-                    <label for="part-manufacturer">メーカー</label>
-                    <select id="part-manufacturer">
-                        <option value="">選択してください（任意）</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="part-start-date">使用開始日 *</label>
-                    <input type="date" id="part-start-date" required>
-                </div>
+                <div class="form-group"><label>メーカー</label><select id="part-manufacturer"></select></div>
+                <div class="form-group"><label>使用開始日</label><input type="date" id="part-start-date" required></div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-add-part">キャンセル</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('add-part-modal')">キャンセル</button>
                     <button type="submit" class="btn btn-primary">追加</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- モーダル: メーカー管理 -->
-    <div id="manage-manufacturers-modal" class="modal" style="z-index: 2000;">
+    <!-- 練習日追加モーダル -->
+    <div id="add-practice-modal" class="modal">
         <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>メーカーを管理</h2>
-            <div class="types-list-container">
-                <div id="manufacturers-list" class="types-list">
-                    <!-- メーカーリストがここに表示されます -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>練習日を追加</h3>
+                <span class="close"><i data-lucide="x" size="20"></i></span>
+            </div>
+            <form id="add-practice-form">
+                <div class="form-group">
+                    <label>日付</label>
+                    <input type="date" id="practice-date" required>
                 </div>
-                <form id="add-manufacturer-form" class="add-type-form" onsubmit="return false;">
-                    <input type="text" id="new-manufacturer-name" placeholder="新しいメーカー名" required>
+                <div class="form-group">
+                    <label>メモ（任意）</label>
+                    <textarea id="practice-note" rows="3" placeholder="メモを入力"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" id="cancel-add-practice" class="btn btn-secondary">キャンセル</button>
                     <button type="submit" class="btn btn-primary">追加</button>
-                </form>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 予定詳細・削除モーダル -->
+    <div id="event-detail-modal" class="modal">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3 id="event-detail-title">予定詳細</h3>
+                <span class="close"><i data-lucide="x" size="20"></i></span>
+            </div>
+            <div id="event-detail-content" style="margin-bottom: 1.5rem;"></div>
+            <div class="form-actions">
+                <button type="button" id="cancel-event-detail" class="btn btn-secondary">閉じる</button>
+                <button type="button" id="delete-event-btn" class="btn" style="background: #ef4444; color: white;">削除</button>
             </div>
         </div>
     </div>
 
-    <!-- モーダル: 交換履歴追加 -->
-    <div id="add-replacement-modal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>交換履歴を追加</h2>
-            <form id="add-replacement-form">
-                <div class="form-group">
-                    <label for="replacement-date">交換日 *</label>
-                    <input type="date" id="replacement-date" required>
-                </div>
-                <div class="form-group">
-                    <label for="replacement-description">内容 *</label>
-                    <textarea id="replacement-description" rows="4" required></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-add-replacement">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">追加</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- モーダル: 修理履歴追加 -->
-    <div id="add-repair-modal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>修理履歴を追加</h2>
-            <form id="add-repair-form">
-                <div class="form-group">
-                    <label for="repair-date">修理日 *</label>
-                    <input type="date" id="repair-date" required>
-                </div>
-                <div class="form-group">
-                    <label for="repair-description">内容 *</label>
-                    <textarea id="repair-description" rows="4" required></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-add-repair">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">追加</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- モーダル: 練習日追加 -->
-    <div id="add-practice-modal" class="modal">
-        <div class="modal-content">
-            <span class="close">&times;</span>
-            <h2>練習日を追加</h2>
-            <form id="add-practice-form">
-                <div class="form-group">
-                    <label for="practice-date">練習日 *</label>
-                    <input type="date" id="practice-date" required>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-add-practice">キャンセル</button>
-                    <button type="submit" class="btn btn-primary">追加</button>
-                </div>
+    <!-- メーカー管理モーダル -->
+    <div id="manage-manufacturers-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>メーカー管理</h3>
+                <span class="close"><i data-lucide="x" size="20"></i></span>
+            </div>
+            <div id="manufacturers-list" style="margin-bottom: 1.5rem;"></div>
+            <form id="add-manufacturer-form" style="display: flex; gap: 0.5rem;">
+                <input type="text" id="new-manufacturer-name" placeholder="新しいメーカー名" required style="flex: 1;">
+                <button type="submit" class="btn btn-primary">追加</button>
             </form>
         </div>
     </div>
@@ -247,4 +365,3 @@
     <script type="module" src="/static/js/app.js"></script>
 </body>
 </html>
-
