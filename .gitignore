@@ -28,3 +28,4 @@ flask_session/
 .cursorindexingignore
 .cursor/
 .cursorrules
+drone_manager.db
