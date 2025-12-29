@@ -13,4 +13,10 @@ build/
 .DS_Store
 *.log
 
+# SpecStory
+.specstory/
 
+# Cursor settings
+.cursorindexingignore
+.cursor/
+.cursorrules
