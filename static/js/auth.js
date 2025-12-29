@@ -1,8 +1,10 @@
 /**
  * Authentication management module
+ * Uses Supabase Auth for authentication
  */
 
 import { authAPI } from './api.js';
+import { supabase } from './supabase.js';
 
 let currentUser = null;
 
@@ -11,10 +13,20 @@ let currentUser = null;
  */
 export async function checkAuth() {
     try {
+        // Supabaseのセッションを確認
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error || !session) {
+            currentUser = null;
+            return null;
+        }
+
+        // ユーザー情報を取得
         const user = await authAPI.getCurrentUser();
         currentUser = user;
         return user;
     } catch (error) {
+        console.error('Auth check error:', error);
         currentUser = null;
         return null;
     }
@@ -68,6 +80,24 @@ export function showMainApp(user) {
  * Initialize authentication
  */
 export async function initAuth() {
+    // Supabaseの認証状態変更を監視
+    supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log('Auth state changed:', event, session);
+        
+        if (event === 'SIGNED_IN' && session) {
+            const user = await authAPI.getCurrentUser();
+            if (user) {
+                await showMainApp(user);
+                if (window.initApp) {
+                    window.initApp();
+                }
+            }
+        } else if (event === 'SIGNED_OUT') {
+            showLoginPage();
+            currentUser = null;
+        }
+    });
+
     // ログインフォーム
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
@@ -80,14 +110,25 @@ export async function initAuth() {
             errorDiv.style.display = 'none';
             errorDiv.textContent = '';
             
+            if (!username || !password) {
+                errorDiv.textContent = 'ユーザー名とパスワードを入力してください';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
             try {
                 const result = await authAPI.login(username, password);
-                await showMainApp(result.user);
-                // アプリケーションを初期化
-                if (window.initApp) {
-                    window.initApp();
+                if (result && result.user) {
+                    await showMainApp(result.user);
+                    // アプリケーションを初期化
+                    if (window.initApp) {
+                        window.initApp();
+                    }
+                } else {
+                    throw new Error('ログインに失敗しました');
                 }
             } catch (error) {
+                console.error('Login error:', error);
                 errorDiv.textContent = error.message || 'ログインに失敗しました';
                 errorDiv.style.display = 'block';
             }
@@ -104,28 +145,34 @@ export async function initAuth() {
             const email = emailInput ? emailInput.value.trim() || null : null;
             const password = document.getElementById('register-password').value;
             const errorDiv = document.getElementById('register-error');
-            
+
             errorDiv.style.display = 'none';
             errorDiv.textContent = '';
-            
+
             if (!username) {
                 errorDiv.textContent = 'ユーザー名は必須です';
                 errorDiv.style.display = 'block';
                 return;
             }
-            
+
+            if (!email) {
+                errorDiv.textContent = 'メールアドレスは必須です';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
             if (!password) {
                 errorDiv.textContent = 'パスワードは必須です';
                 errorDiv.style.display = 'block';
                 return;
             }
-            
+
             if (password.length < 8) {
                 errorDiv.textContent = 'パスワードは8文字以上である必要があります';
                 errorDiv.style.display = 'block';
                 return;
             }
-            
+
             try {
                 const result = await authAPI.register(username, password, email);
                 if (result && result.user) {
@@ -199,5 +246,3 @@ export function getCurrentUser() {
 window.checkAuth = checkAuth;
 window.showLoginPage = showLoginPage;
 window.showMainApp = showMainApp;
-
-

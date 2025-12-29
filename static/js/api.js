@@ -1,97 +1,232 @@
 /**
  * API communication module
- * Handles all HTTP requests to the server
+ * Uses Supabase REST API (PostgREST) for all database operations
  */
 
-const API_BASE = '/api';
+import { supabase, getCurrentUserId } from './supabase.js';
 
 /**
- * API request helper
+ * Helper function to handle Supabase errors
  */
-async function apiRequest(endpoint, options = {}) {
-    const url = `${API_BASE}${endpoint}`;
-    const defaultOptions = {
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Cookieを含める
-    };
-
-    const config = {
-        ...defaultOptions,
-        ...options,
-        headers: {
-            ...defaultOptions.headers,
-            ...(options.headers || {}),
-        },
-    };
-
-    if (config.body && typeof config.body === 'object') {
-        config.body = JSON.stringify(config.body);
+function handleSupabaseError(error) {
+    console.error('Supabase error:', error);
+    
+    if (error.code === 'PGRST116') {
+        throw new Error('データが見つかりません');
     }
-
-    try {
-        const response = await fetch(url, config);
-        
-        // Content-Typeをチェック
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            // JSONでない場合（HTMLエラーページなど）
-            const text = await response.text();
-            console.error('Non-JSON response:', text.substring(0, 200));
-            
-            // 認証エラーの可能性
-            if (response.status === 401 || response.status === 403) {
-                throw new Error('認証が必要です。ログインし直してください。');
-            }
-            
-            throw new Error(`サーバーエラーが発生しました (${response.status})`);
-        }
-        
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || `リクエストに失敗しました (${response.status})`);
-        }
-
-        return data;
-    } catch (error) {
-        console.error('API request error:', error);
-        // エラーメッセージを改善
-        if (error.message.includes('Unexpected token')) {
-            throw new Error('サーバーからの応答が不正です。ログインし直してください。');
-        }
-        throw error;
+    
+    if (error.code === '23505') {
+        throw new Error('このデータは既に存在します');
     }
+    
+    if (error.code === '23503') {
+        throw new Error('関連するデータが存在するため削除できません');
+    }
+    
+    if (error.message) {
+        throw new Error(error.message);
+    }
+    
+    throw new Error('データベースエラーが発生しました');
 }
 
 // ==================== 認証関連 ====================
 
 export const authAPI = {
+    /**
+     * ユーザー登録
+     * Supabase Authを使用し、同時にprofilesテーブルにユーザー情報を保存
+     */
     async register(username, password, email = null) {
-        return apiRequest('/auth/register', {
-            method: 'POST',
-            body: { username, password, email },
-        });
+        try {
+            // Email is now required, so we should always have a valid email
+            if (!email) {
+                throw new Error('メールアドレスは必須です');
+            }
+            const finalEmail = email;
+
+            // Supabase Authでユーザーを作成
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: finalEmail,
+                password: password,
+                options: {
+                    data: {
+                        username: username
+                    }
+                }
+            });
+
+            if (authError) {
+                throw authError;
+            }
+
+            if (!authData.user) {
+                throw new Error('ユーザー登録に失敗しました');
+            }
+
+            // profilesテーブルにユーザー情報を保存
+            // 注意: Supabaseのトリガー関数で自動的に作成されるはずですが、
+            // フォールバックとして手動でINSERTを試みます
+            // トリガーで既に作成されている場合は、ON CONFLICTで無視されます
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: authData.user.id,
+                    username: username,
+                    email: email
+                }, {
+                    onConflict: 'id'
+                });
+
+            if (profileError) {
+                // 既に存在する場合は無視（23505 = unique violation）
+                if (profileError.code === '23505') {
+                    // 既に存在する場合は無視して続行（トリガーで作成された可能性）
+                } else if (profileError.code === 'PGRST205') {
+                    // テーブルが存在しない場合は警告を出して続行
+                    console.warn('Profiles table not found. User registered but profile not saved. Please create the profiles table in Supabase.');
+                } else if (profileError.message && profileError.message.includes('row-level security')) {
+                    // RLSポリシー違反の場合は、トリガーで作成されるはずなので警告のみ
+                    console.warn('RLS policy violation on profile insert. Profile should be auto-created by trigger function.');
+                } else {
+                    // その他のエラーはスロー
+                    throw profileError;
+                }
+            }
+
+            // ユーザー情報を取得
+            let user = await this.getCurrentUser();
+
+            // profilesテーブルが存在しない場合、Supabase Authのユーザー情報から直接構築
+            if (!user && authData.user) {
+                user = {
+                    id: authData.user.id,
+                    username: authData.user.user_metadata?.username || username,
+                    email: authData.user.email || email
+                };
+            }
+
+            return {
+                message: '登録が完了しました',
+                user: user
+            };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
+    /**
+     * ログイン
+     */
     async login(username, password) {
-        return apiRequest('/auth/login', {
-            method: 'POST',
-            body: { username, password },
-        });
+        try {
+            let userEmail = null;
+
+            // RPC関数を使用してusernameからemailを取得
+            // この関数はSECURITY DEFINERで定義されているため、RLSをバイパスできる
+            const { data: email, error: rpcError } = await supabase
+                .rpc('get_user_email_by_username', { p_username: username });
+
+            if (rpcError) {
+                console.error('RPC error:', rpcError);
+                // RPC関数が存在しない場合、直接クエリを試みる（フォールバック）
+                if (rpcError.code === 'PGRST202' || rpcError.message?.includes('function')) {
+                    console.warn('RPC function not found. Please run the SQL setup to create get_user_email_by_username function.');
+                    // 入力がメールアドレス形式かチェック
+                    if (username.includes('@')) {
+                        userEmail = username;
+                    } else {
+                        throw new Error('ログイン機能を使用するには、Supabaseでget_user_email_by_username関数を作成してください。または、ユーザー名の代わりにメールアドレスでログインしてください。');
+                    }
+                } else {
+                    throw new Error('ユーザー名またはパスワードが正しくありません');
+                }
+            } else if (!email) {
+                throw new Error('ユーザー名またはパスワードが正しくありません');
+            } else {
+                userEmail = email;
+            }
+
+            // Supabase Authでログイン
+            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+                email: userEmail,
+                password: password
+            });
+
+            if (authError) {
+                throw new Error('ユーザー名またはパスワードが正しくありません');
+            }
+
+            // ユーザー情報を取得
+            let user = await this.getCurrentUser();
+
+            // profilesテーブルが存在しない場合、Supabase Authのユーザー情報から直接構築
+            if (!user && authData.user) {
+                user = {
+                    id: authData.user.id,
+                    username: authData.user.user_metadata?.username || username,
+                    email: authData.user.email
+                };
+            }
+
+            return {
+                message: 'ログインに成功しました',
+                user: user
+            };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
+    /**
+     * ログアウト
+     */
     async logout() {
-        return apiRequest('/auth/logout', {
-            method: 'POST',
-        });
+        try {
+            const { error } = await supabase.auth.signOut();
+            if (error) throw error;
+            return { message: 'ログアウトしました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
+    /**
+     * 現在のユーザー情報を取得
+     */
     async getCurrentUser() {
-        return apiRequest('/auth/me', {
-            method: 'GET',
-        });
+        try {
+            const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+            
+            if (authError || !authUser) {
+                return null;
+            }
+
+            // profilesテーブルからユーザー情報を取得
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', authUser.id)
+                .single();
+
+            if (profileError || !profile) {
+                return {
+                    id: authUser.id,
+                    username: authUser.user_metadata?.username || 'Unknown',
+                    email: authUser.email
+                };
+            }
+
+            return {
+                id: profile.id,
+                username: profile.username,
+                email: profile.email,
+                created_at: profile.created_at
+            };
+        } catch (error) {
+            console.error('Error getting current user:', error);
+            return null;
+        }
     },
 };
 
@@ -99,36 +234,178 @@ export const authAPI = {
 
 export const droneAPI = {
     async getAll(typeId = null) {
-        const query = typeId ? `?type_id=${typeId}` : '';
-        return apiRequest(`/drones${query}`, {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            let query = supabase
+                .from('drones')
+                .select(`
+                    *,
+                    drone_types!inner(name)
+                `)
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (typeId) {
+                query = query.eq('type_id', typeId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            // パーツ一覧を取得
+            const dronesWithParts = await Promise.all(
+                (data || []).map(async (drone) => {
+                    const { data: parts } = await supabase
+                        .from('parts')
+                        .select('id')
+                        .eq('drone_id', drone.id);
+
+                    return {
+                        ...drone,
+                        typeName: drone.drone_types?.name || '',
+                        parts: parts?.map(p => p.id) || []
+                    };
+                })
+            );
+
+            return dronesWithParts;
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async getById(id) {
-        return apiRequest(`/drones/${id}`, {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('drones')
+                .select(`
+                    *,
+                    drone_types!inner(name)
+                `)
+                .eq('id', id)
+                .eq('user_id', userId)
+                .single();
+
+            if (error) throw error;
+
+            // パーツ一覧を取得
+            const { data: parts } = await supabase
+                .from('parts')
+                .select('id')
+                .eq('drone_id', id);
+
+            return {
+                ...data,
+                typeName: data.drone_types?.name || '',
+                parts: parts?.map(p => p.id) || []
+            };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async create(drone) {
-        return apiRequest('/drones', {
-            method: 'POST',
-            body: drone,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('drones')
+                .insert({
+                    user_id: userId,
+                    name: drone.name,
+                    type_id: drone.type,
+                    start_date: drone.startDate,
+                    photo: drone.photo || '',
+                    status: drone.status || 'ready'
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // デフォルトパーツを追加
+            const { data: typeData } = await supabase
+                .from('drone_types')
+                .select('default_parts')
+                .eq('id', drone.type)
+                .single();
+
+            if (typeData?.default_parts && Array.isArray(typeData.default_parts)) {
+                const defaultParts = typeData.default_parts;
+                for (const partData of defaultParts) {
+                    const partName = typeof partData === 'string' ? partData : partData.name;
+                    const manufacturerId = typeof partData === 'object' ? partData.manufacturerId : null;
+
+                    await supabase
+                        .from('parts')
+                        .insert({
+                            user_id: userId,
+                            drone_id: data.id,
+                            name: partName,
+                            start_date: drone.startDate,
+                            manufacturer_id: manufacturerId,
+                            replacement_history: []
+                        });
+                }
+            }
+
+            return { id: data.id, message: '機体が追加されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async update(id, updates) {
-        return apiRequest(`/drones/${id}`, {
-            method: 'PUT',
-            body: updates,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const updateData = {};
+            if (updates.name !== undefined) updateData.name = updates.name;
+            if (updates.type !== undefined) updateData.type_id = updates.type;
+            if (updates.startDate !== undefined) updateData.start_date = updates.startDate;
+            if (updates.photo !== undefined) updateData.photo = updates.photo;
+            if (updates.status !== undefined) updateData.status = updates.status;
+            updateData.updated_at = new Date().toISOString();
+
+            const { error } = await supabase
+                .from('drones')
+                .update(updateData)
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: '機体が更新されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async delete(id) {
-        return apiRequest(`/drones/${id}`, {
-            method: 'DELETE',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { error } = await supabase
+                .from('drones')
+                .delete()
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: '機体が削除されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 };
 
@@ -136,36 +413,143 @@ export const droneAPI = {
 
 export const partAPI = {
     async getAll(droneId = null) {
-        const query = droneId ? `?drone_id=${droneId}` : '';
-        return apiRequest(`/parts${query}`, {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            let query = supabase
+                .from('parts')
+                .select(`
+                    *,
+                    manufacturers(name)
+                `)
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (droneId) {
+                query = query.eq('drone_id', droneId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            return (data || []).map(part => ({
+                id: part.id,
+                droneId: part.drone_id,
+                name: part.name,
+                startDate: part.start_date,
+                manufacturerId: part.manufacturer_id,
+                manufacturerName: part.manufacturers?.name || null,
+                replacementHistory: part.replacement_history || [],
+                createdAt: part.created_at
+            }));
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async getById(id) {
-        return apiRequest(`/parts/${id}`, {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('parts')
+                .select(`
+                    *,
+                    manufacturers(name)
+                `)
+                .eq('id', id)
+                .eq('user_id', userId)
+                .single();
+
+            if (error) throw error;
+
+            return {
+                id: data.id,
+                droneId: data.drone_id,
+                name: data.name,
+                startDate: data.start_date,
+                manufacturerId: data.manufacturer_id,
+                manufacturerName: data.manufacturers?.name || null,
+                replacementHistory: data.replacement_history || [],
+                createdAt: data.created_at
+            };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async create(part) {
-        return apiRequest('/parts', {
-            method: 'POST',
-            body: part,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('parts')
+                .insert({
+                    user_id: userId,
+                    drone_id: part.droneId,
+                    name: part.name,
+                    start_date: part.startDate,
+                    manufacturer_id: part.manufacturerId || null,
+                    replacement_history: []
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            return { id: data.id, message: 'パーツが追加されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async update(id, updates) {
-        return apiRequest(`/parts/${id}`, {
-            method: 'PUT',
-            body: updates,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const updateData = {};
+            if (updates.name !== undefined) updateData.name = updates.name;
+            if (updates.startDate !== undefined) updateData.start_date = updates.startDate;
+            if (updates.manufacturerId !== undefined) updateData.manufacturer_id = updates.manufacturerId;
+            if (updates.replacementHistory !== undefined) updateData.replacement_history = updates.replacementHistory;
+            updateData.updated_at = new Date().toISOString();
+
+            const { error } = await supabase
+                .from('parts')
+                .update(updateData)
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: 'パーツが更新されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async delete(id) {
-        return apiRequest(`/parts/${id}`, {
-            method: 'DELETE',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { error } = await supabase
+                .from('parts')
+                .delete()
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: 'パーツが削除されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 };
 
@@ -173,39 +557,134 @@ export const partAPI = {
 
 export const repairAPI = {
     async getAll(droneId = null, partId = null) {
-        const params = new URLSearchParams();
-        if (droneId) params.append('drone_id', droneId);
-        if (partId) params.append('part_id', partId);
-        const query = params.toString() ? `?${params.toString()}` : '';
-        return apiRequest(`/repairs${query}`, {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            let query = supabase
+                .from('repairs')
+                .select('*')
+                .eq('user_id', userId)
+                .order('date', { ascending: false });
+
+            if (droneId) {
+                query = query.eq('drone_id', droneId);
+            }
+
+            if (partId) {
+                query = query.eq('part_id', partId);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            return (data || []).map(repair => ({
+                id: repair.id,
+                droneId: repair.drone_id,
+                partId: repair.part_id,
+                date: repair.date,
+                description: repair.description,
+                createdAt: repair.created_at
+            }));
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async getById(id) {
-        return apiRequest(`/repairs/${id}`, {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('repairs')
+                .select('*')
+                .eq('id', id)
+                .eq('user_id', userId)
+                .single();
+
+            if (error) throw error;
+
+            return {
+                id: data.id,
+                droneId: data.drone_id,
+                partId: data.part_id,
+                date: data.date,
+                description: data.description,
+                createdAt: data.created_at
+            };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async create(repair) {
-        return apiRequest('/repairs', {
-            method: 'POST',
-            body: repair,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('repairs')
+                .insert({
+                    user_id: userId,
+                    drone_id: repair.droneId,
+                    part_id: repair.partId || null,
+                    date: repair.date,
+                    description: repair.description
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            return { id: data.id, message: '修理履歴が追加されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async update(id, updates) {
-        return apiRequest(`/repairs/${id}`, {
-            method: 'PUT',
-            body: updates,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const updateData = {};
+            if (updates.date !== undefined) updateData.date = updates.date;
+            if (updates.description !== undefined) updateData.description = updates.description;
+            updateData.updated_at = new Date().toISOString();
+
+            const { error } = await supabase
+                .from('repairs')
+                .update(updateData)
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: '修理履歴が更新されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async delete(id) {
-        return apiRequest(`/repairs/${id}`, {
-            method: 'DELETE',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { error } = await supabase
+                .from('repairs')
+                .delete()
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: '修理履歴が削除されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 };
 
@@ -213,35 +692,129 @@ export const repairAPI = {
 
 export const droneTypeAPI = {
     async getAll() {
-        return apiRequest('/drone-types', {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('drone_types')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            return (data || []).map(type => ({
+                id: type.id,
+                name: type.name,
+                defaultParts: type.default_parts || [],
+                createdAt: type.created_at
+            }));
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async getById(id) {
-        return apiRequest(`/drone-types/${id}`, {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('drone_types')
+                .select('*')
+                .eq('id', id)
+                .eq('user_id', userId)
+                .single();
+
+            if (error) throw error;
+
+            return {
+                id: data.id,
+                name: data.name,
+                defaultParts: data.default_parts || [],
+                createdAt: data.created_at
+            };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async create(type) {
-        return apiRequest('/drone-types', {
-            method: 'POST',
-            body: type,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('drone_types')
+                .insert({
+                    user_id: userId,
+                    name: type.name,
+                    default_parts: type.defaultParts || []
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            return { id: data.id, message: '機体種類が追加されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async update(id, updates) {
-        return apiRequest(`/drone-types/${id}`, {
-            method: 'PUT',
-            body: updates,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const updateData = {};
+            if (updates.name !== undefined) updateData.name = updates.name;
+            if (updates.defaultParts !== undefined) updateData.default_parts = updates.defaultParts;
+            updateData.updated_at = new Date().toISOString();
+
+            const { error } = await supabase
+                .from('drone_types')
+                .update(updateData)
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: '機体種類が更新されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async delete(id) {
-        return apiRequest(`/drone-types/${id}`, {
-            method: 'DELETE',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            // 使用中の機体があるかチェック
+            const { data: drones } = await supabase
+                .from('drones')
+                .select('id')
+                .eq('type_id', id)
+                .limit(1);
+
+            if (drones && drones.length > 0) {
+                throw new Error('この種類を使用している機体があるため削除できません');
+            }
+
+            const { error } = await supabase
+                .from('drone_types')
+                .delete()
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: '機体種類が削除されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 };
 
@@ -249,35 +822,125 @@ export const droneTypeAPI = {
 
 export const manufacturerAPI = {
     async getAll() {
-        return apiRequest('/manufacturers', {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('manufacturers')
+                .select('*')
+                .eq('user_id', userId)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            return (data || []).map(mfg => ({
+                id: mfg.id,
+                name: mfg.name,
+                createdAt: mfg.created_at
+            }));
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async getById(id) {
-        return apiRequest(`/manufacturers/${id}`, {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('manufacturers')
+                .select('*')
+                .eq('id', id)
+                .eq('user_id', userId)
+                .single();
+
+            if (error) throw error;
+
+            return {
+                id: data.id,
+                name: data.name,
+                createdAt: data.created_at
+            };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async create(manufacturer) {
-        return apiRequest('/manufacturers', {
-            method: 'POST',
-            body: manufacturer,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('manufacturers')
+                .insert({
+                    user_id: userId,
+                    name: manufacturer.name
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            return { id: data.id, message: 'メーカーが追加されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async update(id, updates) {
-        return apiRequest(`/manufacturers/${id}`, {
-            method: 'PUT',
-            body: updates,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const updateData = {};
+            if (updates.name !== undefined) updateData.name = updates.name;
+            updateData.updated_at = new Date().toISOString();
+
+            const { error } = await supabase
+                .from('manufacturers')
+                .update(updateData)
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: 'メーカーが更新されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async delete(id) {
-        return apiRequest(`/manufacturers/${id}`, {
-            method: 'DELETE',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            // 使用中のパーツがあるかチェック
+            const { data: parts } = await supabase
+                .from('parts')
+                .select('id')
+                .eq('manufacturer_id', id)
+                .limit(1);
+
+            if (parts && parts.length > 0) {
+                throw new Error('このメーカーを使用しているパーツがあるため削除できません');
+            }
+
+            const { error } = await supabase
+                .from('manufacturers')
+                .delete()
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: 'メーカーが削除されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 };
 
@@ -285,45 +948,117 @@ export const manufacturerAPI = {
 
 export const practiceDayAPI = {
     async getAll() {
-        return apiRequest('/practice-days', {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('practice_days')
+                .select('*')
+                .eq('user_id', userId)
+                .order('date', { ascending: false });
+
+            if (error) throw error;
+
+            return (data || []).map(day => ({
+                id: day.id,
+                date: day.date,
+                note: day.note,
+                createdAt: day.created_at
+            }));
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async getById(id) {
-        return apiRequest(`/practice-days/${id}`, {
-            method: 'GET',
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('practice_days')
+                .select('*')
+                .eq('id', id)
+                .eq('user_id', userId)
+                .single();
+
+            if (error) throw error;
+
+            return {
+                id: data.id,
+                date: data.date,
+                note: data.note,
+                createdAt: data.created_at
+            };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async create(practiceDay) {
-        return apiRequest('/practice-days', {
-            method: 'POST',
-            body: practiceDay,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const { data, error } = await supabase
+                .from('practice_days')
+                .insert({
+                    user_id: userId,
+                    date: practiceDay.date,
+                    note: practiceDay.note || null
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            return { id: data.id, message: '練習日が追加されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async update(id, updates) {
-        return apiRequest(`/practice-days/${id}`, {
-            method: 'PUT',
-            body: updates,
-        });
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
+
+            const updateData = {};
+            if (updates.date !== undefined) updateData.date = updates.date;
+            if (updates.note !== undefined) updateData.note = updates.note || null;
+            updateData.updated_at = new Date().toISOString();
+
+            const { error } = await supabase
+                .from('practice_days')
+                .update(updateData)
+                .eq('id', id)
+                .eq('user_id', userId);
+
+            if (error) throw error;
+
+            return { message: '練習日が更新されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 
     async delete(id) {
-        return apiRequest(`/practice-days/${id}`, {
-            method: 'DELETE',
-        });
-    },
-};
+        try {
+            const userId = await getCurrentUserId();
+            if (!userId) throw new Error('認証が必要です');
 
-// ==================== データ移行関連 ====================
+            const { error } = await supabase
+                .from('practice_days')
+                .delete()
+                .eq('id', id)
+                .eq('user_id', userId);
 
-export const migrateAPI = {
-    async importData(data) {
-        return apiRequest('/migrate/import', {
-            method: 'POST',
-            body: data,
-        });
+            if (error) throw error;
+
+            return { message: '練習日が削除されました' };
+        } catch (error) {
+            handleSupabaseError(error);
+        }
     },
 };
