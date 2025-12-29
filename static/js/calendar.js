@@ -10,8 +10,8 @@ let currentDate = new Date();
 /**
  * Initialize calendar
  */
-export function initCalendar() {
-    renderCalendar();
+export async function initCalendar() {
+    await renderCalendar();
     setupEventListeners();
 }
 
@@ -25,6 +25,7 @@ export function reinitCalendarListeners() {
 // グローバルに公開（ナビゲーションから呼び出せるように）
 window.renderCalendar = renderCalendar;
 window.reinitCalendarListeners = reinitCalendarListeners;
+window.openAddPracticeModal = openAddPracticeModal;
 
 // イベントリスナーの参照を保持（重複登録を防ぐため）
 let eventListenersSetup = false;
@@ -67,25 +68,33 @@ function setupEventListeners() {
     }
 
     // 新しいハンドラーを作成
-    prevMonthHandler = () => {
+    prevMonthHandler = async () => {
         currentDate.setMonth(currentDate.getMonth() - 1);
-        renderCalendar();
+        await renderCalendar();
     };
 
-    nextMonthHandler = () => {
+    nextMonthHandler = async () => {
         currentDate.setMonth(currentDate.getMonth() + 1);
-        renderCalendar();
+        await renderCalendar();
     };
 
     addPracticeDayBtnHandler = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        openAddPracticeModal();
+        console.log('Add practice day button clicked');
+        try {
+            openAddPracticeModal();
+        } catch (error) {
+            console.error('Error opening practice modal:', error);
+            alert('練習日追加モーダルを開く際にエラーが発生しました');
+        }
     };
 
-    addPracticeFormHandler = (e) => {
+    addPracticeFormHandler = async (e) => {
         e.preventDefault();
-        addPracticeDay();
+        e.stopPropagation();
+        await addPracticeDay();
+        return false;
     };
 
     deleteEventBtnHandler = () => {
@@ -96,21 +105,53 @@ function setupEventListeners() {
     const prevMonthBtn = document.getElementById('prev-month');
     if (prevMonthBtn) {
         prevMonthBtn.addEventListener('click', prevMonthHandler);
+    } else {
+        console.warn('prev-month button not found');
     }
 
     const nextMonthBtn = document.getElementById('next-month');
     if (nextMonthBtn) {
         nextMonthBtn.addEventListener('click', nextMonthHandler);
+    } else {
+        console.warn('next-month button not found');
     }
 
     const addPracticeDayBtn = document.getElementById('add-practice-day');
     if (addPracticeDayBtn) {
+        // 既存のイベントリスナーを削除（重複防止）
+        addPracticeDayBtn.removeEventListener('click', addPracticeDayBtnHandler);
         addPracticeDayBtn.addEventListener('click', addPracticeDayBtnHandler);
+        console.log('Add practice day button event listener registered');
+        
+        // 直接クリックイベントも設定（フォールバック）
+        addPracticeDayBtn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Add practice day button clicked (onclick)');
+            openAddPracticeModal();
+        };
+    } else {
+        console.error('add-practice-day button not found');
+        // 少し待ってから再試行
+        setTimeout(() => {
+            const retryBtn = document.getElementById('add-practice-day');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', addPracticeDayBtnHandler);
+                retryBtn.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openAddPracticeModal();
+                };
+                console.log('Add practice day button event listener registered (retry)');
+            }
+        }, 100);
     }
 
     const addPracticeForm = document.getElementById('add-practice-form');
     if (addPracticeForm) {
         addPracticeForm.addEventListener('submit', addPracticeFormHandler);
+    } else {
+        console.warn('add-practice-form not found');
     }
 
     setupModalClose('add-practice-modal', 'cancel-add-practice');
@@ -129,21 +170,36 @@ function setupEventListeners() {
 /**
  * Render calendar
  */
-export function renderCalendar() {
+export async function renderCalendar() {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
 
     // 月と年の表示を更新
-    document.getElementById('current-month-year').textContent = 
-        `${year}年 ${month + 1}月`;
+    const monthYearEl = document.getElementById('current-month-year');
+    if (monthYearEl) {
+        monthYearEl.textContent = `${year}年 ${month + 1}月`;
+    }
 
-    // カレンダーコンテナをクリア
+    // カレンダーコンテナを取得
     const container = document.getElementById('calendar-container');
-    container.innerHTML = '';
-
-    // カレンダーグリッドを作成
+    if (!container) {
+        console.error('Calendar container not found');
+        return;
+    }
+    
+    // 既存のカレンダーを非表示にしてから新しいカレンダーを作成
+    const existingCalendar = container.querySelector('.calendar-grid');
+    if (existingCalendar) {
+        // 既存のカレンダーを非表示にする（フェードアウト効果）
+        existingCalendar.style.opacity = '0';
+        existingCalendar.style.transition = 'opacity 0.2s ease';
+    }
+    
+    // 新しいカレンダーグリッドを作成（既存のものは残したまま）
     const calendar = document.createElement('div');
     calendar.className = 'calendar-grid';
+    calendar.style.opacity = '0';
+    calendar.style.transition = 'opacity 0.2s ease';
 
     // 曜日ヘッダー
     const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
@@ -213,8 +269,8 @@ export function renderCalendar() {
         
         dayCell.appendChild(dayNumber);
 
-        // イベント表示
-        const events = getEventsForDate(dateStr);
+        // イベント表示（非同期で取得）
+        const events = await getEventsForDate(dateStr);
         if (events.length > 0) {
             const eventsContainer = document.createElement('div');
             eventsContainer.className = 'day-events';
@@ -252,9 +308,9 @@ export function renderCalendar() {
                 eventItem.textContent = event.label;
                 
                 // イベントアイテムのクリックイベント（詳細モーダルを開く）
-                eventItem.addEventListener('click', (e) => {
+                eventItem.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    openEventDetailModal(event, dateStr);
+                    await openEventDetailModal(event, dateStr);
                 });
                 
                 // ホバー効果
@@ -274,18 +330,36 @@ export function renderCalendar() {
         calendar.appendChild(dayCell);
     }
 
+    // 新しいカレンダーをコンテナに追加
     container.appendChild(calendar);
-    lucide.createIcons();
+    
+    // 少し待ってからフェードイン効果を適用
+    setTimeout(() => {
+        calendar.style.opacity = '1';
+    }, 10);
+    
+    // 既存のカレンダーを削除（フェードアウト後に）
+    if (existingCalendar) {
+        setTimeout(() => {
+            if (existingCalendar.parentNode) {
+                existingCalendar.remove();
+            }
+        }, 200);
+    }
+    
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
 }
 
 /**
  * Get events for a specific date
  */
-function getEventsForDate(dateStr) {
+async function getEventsForDate(dateStr) {
     const events = [];
 
     // 練習日
-    const practiceDays = practiceDayStorage.getAll();
+    const practiceDays = await practiceDayStorage.getAll();
     practiceDays.forEach(day => {
         if (day.date === dateStr) {
             events.push({ 
@@ -298,12 +372,12 @@ function getEventsForDate(dateStr) {
     });
 
     // 修理履歴
-    const repairs = repairStorage.getAll();
-    repairs.forEach(repair => {
+    const repairs = await repairStorage.getAll();
+    for (const repair of repairs) {
         if (repair.date === dateStr) {
-            const drone = droneStorage.getById(repair.droneId);
+            const drone = await droneStorage.getById(repair.droneId);
             const droneName = drone ? drone.name : '不明';
-            const part = repair.partId ? partStorage.getById(repair.partId) : null;
+            const part = repair.partId ? await partStorage.getById(repair.partId) : null;
             const partName = part ? part.name : '';
             const label = partName ? `${droneName} - ${partName} 修理` : `${droneName} 修理`;
             events.push({ 
@@ -313,15 +387,16 @@ function getEventsForDate(dateStr) {
                 data: repair
             });
         }
-    });
+    }
 
     // パーツ交換履歴
-    const parts = partStorage.getAll();
-    parts.forEach(part => {
+    const parts = await partStorage.getAll();
+    for (const part of parts) {
         if (part.replacementHistory) {
-            part.replacementHistory.forEach((replacement, index) => {
+            for (let index = 0; index < part.replacementHistory.length; index++) {
+                const replacement = part.replacementHistory[index];
                 if (replacement.date === dateStr) {
-                    const drone = droneStorage.getById(part.droneId);
+                    const drone = await droneStorage.getById(part.droneId);
                     const droneName = drone ? drone.name : '不明';
                     events.push({ 
                         type: 'replacement', 
@@ -331,9 +406,9 @@ function getEventsForDate(dateStr) {
                         data: { part, replacement }
                     });
                 }
-            });
+            }
         }
-    });
+    }
 
     return events;
 }
@@ -344,12 +419,20 @@ function getEventsForDate(dateStr) {
  */
 function openAddPracticeModal(dateStr = null) {
     try {
+        console.log('openAddPracticeModal called with dateStr:', dateStr);
         const form = document.getElementById('add-practice-form');
         const modal = document.getElementById('add-practice-modal');
         const dateInput = document.getElementById('practice-date');
         
-        if (!form || !modal) {
-            console.error('Practice modal elements not found');
+        if (!form) {
+            console.error('add-practice-form not found');
+            alert('フォームが見つかりません');
+            return;
+        }
+        
+        if (!modal) {
+            console.error('add-practice-modal not found');
+            alert('モーダルが見つかりません');
             return;
         }
         
@@ -358,9 +441,17 @@ function openAddPracticeModal(dateStr = null) {
         // 日付が指定されている場合は自動設定
         if (dateStr && dateInput) {
             dateInput.value = dateStr;
+        } else if (dateInput) {
+            // 日付が指定されていない場合は今日の日付を設定
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            dateInput.value = `${year}-${month}-${day}`;
         }
         
         modal.style.display = 'flex';
+        console.log('Modal displayed');
         
         // アイコンを再レンダリング
         if (window.lucide) {
@@ -368,45 +459,84 @@ function openAddPracticeModal(dateStr = null) {
         }
     } catch (error) {
         console.error('Error opening practice modal:', error);
+        alert('練習日追加モーダルを開く際にエラーが発生しました: ' + error.message);
     }
 }
 
 /**
  * Add practice day
  */
-function addPracticeDay() {
-    const dateInput = document.getElementById('practice-date');
-    const noteInput = document.getElementById('practice-note');
-    
-    if (!dateInput) {
-        alert('練習日入力フィールドが見つかりません');
-        return;
-    }
-    
-    const date = dateInput.value;
-    const note = noteInput ? noteInput.value.trim() : '';
+async function addPracticeDay() {
+    try {
+        console.log('addPracticeDay called');
+        const dateInput = document.getElementById('practice-date');
+        const noteInput = document.getElementById('practice-note');
+        
+        if (!dateInput) {
+            console.error('practice-date input not found');
+            alert('練習日入力フィールドが見つかりません');
+            return;
+        }
+        
+        const date = dateInput.value;
+        const note = noteInput ? noteInput.value.trim() : '';
 
-    if (!date) {
-        alert('練習日を選択してください');
-        return;
-    }
+        if (!date) {
+            alert('練習日を選択してください');
+            return;
+        }
 
-    // 同じ日付の練習日が既に存在するかチェック
-    const existingPracticeDays = practiceDayStorage.getAll();
-    if (existingPracticeDays.some(day => day.date === date)) {
-        alert('この日付には既に練習日が登録されています');
-        return;
-    }
+        console.log('Adding practice day:', { date, note });
 
-    const practiceDay = {
-        date,
-        note: note || null
-    };
-    
-    practiceDayStorage.add(practiceDay);
-    closeModal('add-practice-modal');
-    renderCalendar();
-    updateStats();
+        // 同じ日付の練習日が既に存在するかチェック
+        const existingPracticeDays = await practiceDayStorage.getAll();
+        if (existingPracticeDays.some(day => day.date === date)) {
+            alert('この日付には既に練習日が登録されています');
+            return;
+        }
+
+        const practiceDay = {
+            date,
+            note: note || null
+        };
+        
+        console.log('Sending practice day data:', practiceDay);
+        
+        try {
+            const result = await practiceDayStorage.add(practiceDay);
+            console.log('Practice day added successfully:', result);
+            
+            closeModal('add-practice-modal');
+            await renderCalendar();
+            if (window.updateStats) {
+                await window.updateStats();
+            } else {
+                await updateStats();
+            }
+        } catch (storageError) {
+            console.error('Storage error:', storageError);
+            // ストレージエラーを再スローして、外側のcatchで処理
+            throw storageError;
+        }
+    } catch (error) {
+        console.error('Error adding practice day:', error);
+        console.error('Error stack:', error.stack);
+        
+        let errorMessage = '練習日の追加中にエラーが発生しました';
+        if (error.message) {
+            if (error.message.includes('既に練習日が登録されています')) {
+                errorMessage = 'この日付には既に練習日が登録されています';
+            } else if (error.message.includes('サーバーエラー')) {
+                errorMessage = error.message;
+            } else if (error.message.includes('認証')) {
+                errorMessage = '認証エラーが発生しました。ログインし直してください。';
+            } else {
+                errorMessage += ': ' + error.message;
+            }
+        }
+        
+        alert(errorMessage);
+    }
 }
 
 /**
@@ -469,7 +599,7 @@ function closeModal(modalId) {
  */
 let currentEventData = null;
 
-function openEventDetailModal(event, dateStr) {
+async function openEventDetailModal(event, dateStr) {
     currentEventData = { ...event, date: dateStr };
     const modal = document.getElementById('event-detail-modal');
     const titleEl = document.getElementById('event-detail-title');
@@ -503,9 +633,9 @@ function openEventDetailModal(event, dateStr) {
     } else if (event.type === 'repair') {
         title = '修理履歴の詳細';
         const repair = event.data;
-        const drone = droneStorage.getById(repair.droneId);
+        const drone = await droneStorage.getById(repair.droneId);
         const droneName = drone ? drone.name : '不明';
-        const part = repair.partId ? partStorage.getById(repair.partId) : null;
+        const part = repair.partId ? await partStorage.getById(repair.partId) : null;
         const partName = part ? part.name : '';
         
         content = `
@@ -533,7 +663,7 @@ function openEventDetailModal(event, dateStr) {
     } else if (event.type === 'replacement') {
         title = 'パーツ交換履歴の詳細';
         const { part, replacement } = event.data;
-        const drone = droneStorage.getById(part.droneId);
+        const drone = await droneStorage.getById(part.droneId);
         const droneName = drone ? drone.name : '不明';
         
         content = `
@@ -573,7 +703,7 @@ function openEventDetailModal(event, dateStr) {
 /**
  * Delete event
  */
-function deleteEvent() {
+async function deleteEvent() {
     if (!currentEventData) return;
     
     const confirmMessage = 'この予定を削除してもよろしいですか？';
@@ -584,20 +714,20 @@ function deleteEvent() {
     try {
         if (currentEventData.type === 'practice') {
             // 練習日を削除
-            practiceDayStorage.remove(currentEventData.id);
+            await practiceDayStorage.remove(currentEventData.id);
         } else if (currentEventData.type === 'repair') {
             // 修理履歴を削除
-            repairStorage.remove(currentEventData.id);
+            await repairStorage.remove(currentEventData.id);
         } else if (currentEventData.type === 'replacement') {
             // パーツ交換履歴を削除
             const { part, replacement } = currentEventData.data;
             const replacementHistory = part.replacementHistory || [];
             replacementHistory.splice(currentEventData.replacementIndex, 1);
-            partStorage.update(part.id, { replacementHistory });
+            await partStorage.update(part.id, { replacementHistory });
         }
         
         closeModal('event-detail-modal');
-        renderCalendar();
+        await renderCalendar();
         updateStats();
     } catch (error) {
         console.error('Error deleting event:', error);

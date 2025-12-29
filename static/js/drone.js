@@ -10,11 +10,11 @@ let selectedTypeFilter = '';
 /**
  * Initialize drone management
  */
-export function initDroneManagement() {
-    loadDroneList();
-    loadTypeFilter();
+export async function initDroneManagement() {
+    await loadDroneList();
+    await loadTypeFilter();
     setupEventListeners();
-    updateStats();
+    await updateStats();
 }
 
 /**
@@ -34,22 +34,22 @@ function setupEventListeners() {
     }
 
     // 種類管理ボタン
-    document.getElementById('manage-types-btn').addEventListener('click', () => {
-        openManageTypesModal();
+    document.getElementById('manage-types-btn').addEventListener('click', async () => {
+        await openManageTypesModal();
     });
 
     // メーカー管理ボタン（存在する場合のみ）
     const manageManufacturersBtn = document.getElementById('manage-manufacturers-btn');
     if (manageManufacturersBtn) {
-        manageManufacturersBtn.addEventListener('click', () => {
-            openManageManufacturersModal();
+        manageManufacturersBtn.addEventListener('click', async () => {
+            await openManageManufacturersModal();
         });
     }
 
     // 種類フィルター
-    document.getElementById('type-filter').addEventListener('change', (e) => {
+    document.getElementById('type-filter').addEventListener('change', async (e) => {
         selectedTypeFilter = e.target.value;
-        loadDroneList();
+        await loadDroneList();
     });
 
     // クイックアクション
@@ -64,8 +64,8 @@ function setupEventListeners() {
         console.error('quick-add-drone not found');
     }
 
-    document.getElementById('quick-manage-types').addEventListener('click', () => {
-        openManageTypesModal();
+    document.getElementById('quick-manage-types').addEventListener('click', async () => {
+        await openManageTypesModal();
     });
 
     document.getElementById('quick-calendar').addEventListener('click', () => {
@@ -77,35 +77,59 @@ function setupEventListeners() {
     });
 
     // 機体追加フォーム
-    document.getElementById('add-drone-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        addDrone();
-    });
+    const addDroneForm = document.getElementById('add-drone-form');
+    if (addDroneForm) {
+        // フォームのsubmitイベント
+        addDroneForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await addDrone();
+            return false;
+        });
+        
+        // 登録ボタンのクリックイベント（フォールバック）
+        const submitBtn = addDroneForm.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // フォームのバリデーションをチェック
+                if (addDroneForm.checkValidity()) {
+                    await addDrone();
+                } else {
+                    addDroneForm.reportValidity();
+                }
+                return false;
+            });
+        }
+    } else {
+        console.error('add-drone-form not found');
+    }
 
     // 種類追加フォーム
-    document.getElementById('add-type-form').addEventListener('submit', (e) => {
+    document.getElementById('add-type-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        addDroneType();
+        await addDroneType();
     });
 
     // メーカー追加フォーム
     const addManufacturerForm = document.getElementById('add-manufacturer-form');
     if (addManufacturerForm) {
-        addManufacturerForm.addEventListener('submit', (e) => {
+        addManufacturerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             e.stopPropagation();
-            addManufacturer();
+            await addManufacturer();
             return false;
         });
     }
 
     // 戻るボタン
-    document.getElementById('back-to-list').addEventListener('click', () => {
-        showHomePage();
+    document.getElementById('back-to-list').addEventListener('click', async () => {
+        await showHomePage();
     });
 
     // モーダルクローズ
-    setupModalClose('add-drone-modal', 'cancel-add-drone');
+    setupModalClose('add-drone-modal');
     setupModalClose('manage-types-modal');
     setupModalClose('manage-manufacturers-modal');
 
@@ -116,7 +140,7 @@ function setupEventListeners() {
 /**
  * Update statistics
  */
-export function updateStats() {
+export async function updateStats() {
     const statDronesCount = document.getElementById('stat-drones-count');
     const statPartsCount = document.getElementById('stat-parts-count');
     const statRepairsCount = document.getElementById('stat-repairs-count');
@@ -127,10 +151,10 @@ export function updateStats() {
         return;
     }
     
-    const drones = droneStorage.getAll();
-    const practiceDays = practiceDayStorage.getAll();
-    const repairs = repairStorage.getAll();
-    const types = droneTypeStorage.getAll();
+    const drones = await droneStorage.getAll();
+    const practiceDays = await practiceDayStorage.getAll();
+    const repairs = await repairStorage.getAll();
+    const types = await droneTypeStorage.getAll();
 
     statDronesCount.textContent = drones.length;
     statPartsCount.textContent = practiceDays.length;
@@ -141,8 +165,8 @@ export function updateStats() {
 /**
  * Load drone list
  */
-function loadDroneList() {
-    const drones = droneStorage.getAll();
+async function loadDroneList() {
+    const drones = await droneStorage.getAll();
     const filteredDrones = selectedTypeFilter 
         ? drones.filter(drone => drone.type === selectedTypeFilter)
         : drones;
@@ -170,7 +194,7 @@ function loadDroneList() {
     lucide.createIcons();
     
     // 統計情報を更新
-    updateStats();
+    await updateStats();
 }
 
 /**
@@ -179,10 +203,10 @@ function loadDroneList() {
 function createDroneCard(drone) {
     const card = document.createElement('div');
     card.className = 'drone-card';
-    card.addEventListener('click', (e) => {
+    card.addEventListener('click', async (e) => {
         // プルダウンのクリックは機体詳細への遷移を防ぐ
         if (!e.target.closest('.drone-status-select')) {
-            showDroneDetail(drone.id);
+            await showDroneDetail(drone.id);
         }
     });
 
@@ -260,10 +284,10 @@ function createDroneCard(drone) {
     // 状態プルダウンのイベントリスナーを設定
     const statusSelect = card.querySelector('.drone-status-select');
     if (statusSelect) {
-        statusSelect.addEventListener('change', (e) => {
+        statusSelect.addEventListener('change', async (e) => {
             e.stopPropagation();
             const newStatus = e.target.value;
-            updateDroneStatus(drone.id, newStatus);
+            await updateDroneStatus(drone.id, newStatus);
             // アイコンと色を更新
             const newStatusConfig = statusConfig[newStatus];
             const iconElement = card.querySelector('.drone-status-select-wrapper i[data-lucide]');
@@ -282,8 +306,8 @@ function createDroneCard(drone) {
 /**
  * Load type filter dropdown
  */
-function loadTypeFilter() {
-    const types = droneTypeStorage.getAll();
+async function loadTypeFilter() {
+    const types = await droneTypeStorage.getAll();
     const filterSelect = document.getElementById('type-filter');
     const addDroneSelect = document.getElementById('drone-type');
 
@@ -333,9 +357,9 @@ function setupPhotoPreview() {
     }
 }
 
-function openAddDroneModal() {
+async function openAddDroneModal() {
     try {
-        loadTypeFilter();
+        await loadTypeFilter();
         const form = document.getElementById('add-drone-form');
         if (form) {
             form.reset();
@@ -363,64 +387,80 @@ function openAddDroneModal() {
  * Add new drone
  */
 async function addDrone() {
-    const name = document.getElementById('drone-name').value.trim();
-    const type = document.getElementById('drone-type').value;
-    const startDate = document.getElementById('drone-start-date').value;
-    const photoFile = document.getElementById('drone-photo').files[0];
-
-    if (!name || !type || !startDate) {
-        alert('必須項目を入力してください');
-        return;
-    }
-
-    let photoBase64 = '';
-    if (photoFile) {
-        try {
-            photoBase64 = await compressAndConvertToBase64(photoFile);
-        } catch (error) {
-            alert('写真の処理中にエラーが発生しました。別の写真を選択してください。');
-            console.error('Photo compression error:', error);
+    try {
+        const nameInput = document.getElementById('drone-name');
+        const typeInput = document.getElementById('drone-type');
+        const startDateInput = document.getElementById('drone-start-date');
+        const photoInput = document.getElementById('drone-photo');
+        
+        if (!nameInput || !typeInput || !startDateInput) {
+            alert('フォーム要素が見つかりません。ページを再読み込みしてください。');
+            console.error('Form elements not found');
             return;
         }
-    }
+        
+        const name = nameInput.value.trim();
+        const type = typeInput.value;
+        const startDate = startDateInput.value;
+        const photoFile = photoInput ? photoInput.files[0] : null;
 
-    const drone = {
-        name,
-        type,
-        startDate,
-        photo: photoBase64,
-        parts: [],
-        status: 'ready' // デフォルト状態
-    };
+        if (!name || !type || !startDate) {
+            alert('必須項目を入力してください');
+            return;
+        }
 
-    const newDrone = droneStorage.add(drone);
-    
-    // 種類のデフォルトパーツを追加
-    const droneType = droneTypeStorage.getById(type);
-    if (droneType && droneType.defaultParts && droneType.defaultParts.length > 0) {
-        const parts = newDrone.parts || [];
-        droneType.defaultParts.forEach(partData => {
-            // 互換性のため、文字列の場合はそのまま、オブジェクトの場合はnameとmanufacturerIdを使用
-            const partName = typeof partData === 'string' ? partData : partData.name;
-            const manufacturerId = typeof partData === 'string' ? null : (partData.manufacturerId || null);
-            const part = {
-                droneId: newDrone.id,
-                name: partName,
-                startDate: startDate, // 機体の使用開始日と同じにする
-                replacementHistory: [],
-                manufacturerId: manufacturerId
-            };
-            const newPart = partStorage.add(part);
-            parts.push(newPart.id);
-        });
-        droneStorage.update(newDrone.id, { parts });
+        let photoBase64 = '';
+        if (photoFile) {
+            try {
+                photoBase64 = await compressAndConvertToBase64(photoFile);
+            } catch (error) {
+                alert('写真の処理中にエラーが発生しました。別の写真を選択してください。');
+                console.error('Photo compression error:', error);
+                return;
+            }
+        }
+
+        const drone = {
+            name,
+            type,
+            startDate,
+            photo: photoBase64,
+            parts: [],
+            status: 'ready' // デフォルト状態
+        };
+
+        console.log('Adding drone:', { name, type, startDate, hasPhoto: !!photoBase64 });
+        
+        const newDrone = await droneStorage.add(drone);
+        
+        console.log('Drone added successfully:', newDrone);
+        
+        // 注意: サーバー側でデフォルトパーツは自動的に追加されるため、
+        // クライアント側で追加処理を行う必要はありません
+        // サーバー側のcreate_droneエンドポイントで処理済み
+        
+        closeModal('add-drone-modal');
+        
+        // ホーム画面を表示してから一覧を更新
+        await showHomePage();
+        await updateStats();
+    } catch (error) {
+        console.error('Error adding drone:', error);
+        console.error('Error stack:', error.stack);
+        
+        let errorMessage = '機体の追加中にエラーが発生しました';
+        if (error.message) {
+            if (error.message.includes('認証')) {
+                errorMessage = '認証エラーが発生しました。ログインし直してください。';
+            } else if (error.message.includes('サーバー')) {
+                errorMessage = error.message;
+            } else {
+                errorMessage += ': ' + error.message;
+            }
+        }
+        
+        alert(errorMessage);
     }
-    
-    closeModal('add-drone-modal');
-    
-    // ホーム画面を表示してから一覧を更新
-    showHomePage();
-    updateStats();
 }
 
 /**
@@ -481,24 +521,24 @@ function compressAndConvertToBase64(file) {
 /**
  * Show drone detail page
  */
-export function showDroneDetail(droneId) {
+export async function showDroneDetail(droneId) {
     currentDroneId = droneId;
-    const drone = droneStorage.getById(droneId);
+    const drone = await droneStorage.getById(droneId);
     if (!drone) return;
 
-    const type = droneTypeStorage.getById(drone.type);
+    const type = await droneTypeStorage.getById(drone.type);
     const typeName = type ? type.name : '不明';
-    const parts = partStorage.getByDroneId(droneId);
-    const repairs = repairStorage.getByDroneId(droneId);
+    const parts = await partStorage.getByDroneId(droneId);
+    const repairs = await repairStorage.getByDroneId(droneId);
     
     // パーツにメーカー情報を追加
-    const partsWithManufacturer = parts.map(part => {
-        const manufacturer = part.manufacturerId ? manufacturerStorage.getById(part.manufacturerId) : null;
+    const partsWithManufacturer = await Promise.all(parts.map(async (part) => {
+        const manufacturer = part.manufacturerId ? await manufacturerStorage.getById(part.manufacturerId) : null;
         return {
             ...part,
             manufacturerName: manufacturer ? manufacturer.name : null
         };
-    });
+    }));
 
     // 状態の取得（デフォルトは'ready'）
     const status = drone.status || 'ready';
@@ -661,9 +701,9 @@ export function showDroneDetail(droneId) {
     // 状態プルダウンのイベントリスナーを設定
     const statusSelect = detailContent.querySelector('.drone-status-select');
     if (statusSelect) {
-        statusSelect.addEventListener('change', (e) => {
+        statusSelect.addEventListener('change', async (e) => {
             const newStatus = e.target.value;
-            updateDroneStatus(drone.id, newStatus);
+            await updateDroneStatus(drone.id, newStatus);
             // アイコンと色を更新
             const newStatusConfig = statusConfig[newStatus];
             const iconElement = detailContent.querySelector('.drone-status-select-wrapper i[data-lucide]');
@@ -677,27 +717,26 @@ export function showDroneDetail(droneId) {
     }
 
     // イベントリスナーを設定
-    document.getElementById('add-part-btn').addEventListener('click', () => {
-        openAddPartModal();
+    document.getElementById('add-part-btn').addEventListener('click', async () => {
+        await openAddPartModal();
     });
 
     document.getElementById('add-repair-btn').addEventListener('click', () => {
         openAddRepairModal();
     });
 
-    document.getElementById('delete-drone-btn').addEventListener('click', () => {
-        deleteDrone(droneId);
+    document.getElementById('delete-drone-btn').addEventListener('click', async () => {
+        await deleteDrone(droneId);
     });
 
     // 現在の機体IDを保存
     document.getElementById('current-drone-id').value = droneId;
 
     document.querySelectorAll('.view-part-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', async (e) => {
             const partId = e.target.dataset.partId;
-            import('./parts.js').then(module => {
-                module.showPartDetail(partId);
-            });
+            const module = await import('./parts.js');
+            await module.showPartDetail(partId);
         });
     });
 
@@ -727,12 +766,12 @@ function openAddRepairModal() {
 /**
  * Show home page
  */
-function showHomePage() {
+async function showHomePage() {
     if (window.showPage) {
         window.showPage('home-page');
     }
-    loadDroneList();
-    updateStats();
+    await loadDroneList();
+    await updateStats();
 }
 
 /**
@@ -801,8 +840,8 @@ function closeModal(modalId) {
 /**
  * Open manage types modal
  */
-function openManageTypesModal() {
-    loadTypesList();
+async function openManageTypesModal() {
+    await loadTypesList();
     document.getElementById('add-type-form').reset();
     document.getElementById('manage-types-modal').style.display = 'flex';
 }
@@ -810,8 +849,8 @@ function openManageTypesModal() {
 /**
  * Load types list
  */
-function loadTypesList() {
-    const types = droneTypeStorage.getAll();
+async function loadTypesList() {
+    const types = await droneTypeStorage.getAll();
     const typesList = document.getElementById('types-list');
     
     typesList.innerHTML = '';
@@ -825,7 +864,8 @@ function loadTypesList() {
         return;
     }
 
-    types.forEach(type => {
+    // 各カテゴリーのパーツリストを非同期で構築
+    for (const type of types) {
         const defaultParts = type.defaultParts || [];
         const item = document.createElement('div');
         item.className = 'type-item-expandable';
@@ -833,6 +873,35 @@ function loadTypesList() {
         item.dataset.typeId = type.id;
         
         const isExpanded = item.dataset.expanded === 'true';
+        
+        // パーツリストを非同期で構築
+        let partsListHTML = '';
+        if (defaultParts.length === 0) {
+            partsListHTML = '<p class="empty-message" style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.875rem;">デフォルトパーツはありません</p>';
+        } else {
+            const partsHTML = await Promise.all(defaultParts.map(async (part, index) => {
+                const partName = typeof part === 'string' ? part : part.name;
+                const partObj = typeof part === 'string' ? { name: part, manufacturerId: null } : part;
+                let manufacturerName = '';
+                if (partObj.manufacturerId) {
+                    const manufacturer = await manufacturerStorage.getById(partObj.manufacturerId);
+                    manufacturerName = manufacturer ? manufacturer.name : '';
+                }
+                return `
+                    <div class="type-part-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-main); border-radius: var(--radius-sm); border: 1px solid var(--border-base);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="component" size="14" style="color: var(--secondary);"></i>
+                            <span style="font-weight: 500; font-size: 0.875rem;">${escapeHtml(partName)}</span>
+                            ${manufacturerName ? `<span style="color: var(--text-muted); font-size: 0.75rem; background: var(--bg-card); padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid var(--border-base);">${escapeHtml(manufacturerName)}</span>` : ''}
+                        </div>
+                        <button class="btn btn-danger btn-small delete-type-part-btn" data-type-id="${type.id}" data-part-index="${index}" style="padding: 0.25rem; background: transparent; border: none;">
+                            <i data-lucide="x" size="14"></i>
+                        </button>
+                    </div>
+                `;
+            }));
+            partsListHTML = partsHTML.join('');
+        }
         
         item.innerHTML = `
             <div class="type-item-header" style="background: var(--bg-main); border-radius: var(--radius-md); padding: 1rem; border: 1px solid var(--border-base); display: flex; justify-content: space-between; align-items: center;">
@@ -853,27 +922,7 @@ function loadTypesList() {
             </div>
             <div class="type-parts-section" style="display: ${isExpanded ? 'block' : 'none'}; padding: 1.25rem; border: 1px solid var(--border-base); border-top: none; border-radius: 0 0 var(--radius-md) var(--radius-md); background: var(--bg-card);">
                 <div class="type-parts-list" style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.25rem;">
-                    ${defaultParts.length === 0 
-                        ? '<p class="empty-message" style="padding: 1rem; text-align: center; color: var(--text-muted); font-size: 0.875rem;">デフォルトパーツはありません</p>'
-                        : defaultParts.map((part, index) => {
-                            const partName = typeof part === 'string' ? part : part.name;
-                            const partObj = typeof part === 'string' ? { name: part, manufacturerId: null } : part;
-                            const manufacturer = partObj.manufacturerId ? manufacturerStorage.getById(partObj.manufacturerId) : null;
-                            const manufacturerName = manufacturer ? manufacturer.name : '';
-                            return `
-                                <div class="type-part-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-main); border-radius: var(--radius-sm); border: 1px solid var(--border-base);">
-                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                        <i data-lucide="component" size="14" style="color: var(--secondary);"></i>
-                                        <span style="font-weight: 500; font-size: 0.875rem;">${escapeHtml(partName)}</span>
-                                        ${manufacturerName ? `<span style="color: var(--text-muted); font-size: 0.75rem; background: var(--bg-card); padding: 0.1rem 0.4rem; border-radius: 4px; border: 1px solid var(--border-base);">${escapeHtml(manufacturerName)}</span>` : ''}
-                                    </div>
-                                    <button class="btn btn-danger btn-small delete-type-part-btn" data-type-id="${type.id}" data-part-index="${index}" style="padding: 0.25rem; background: transparent; border: none;">
-                                        <i data-lucide="x" size="14"></i>
-                                    </button>
-                                </div>
-                            `;
-                        }).join('')
-                    }
+                    ${partsListHTML}
                 </div>
                 <form class="add-type-part-form" data-type-id="${type.id}">
                     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
@@ -897,25 +946,49 @@ function loadTypesList() {
         lucide.createIcons();
 
         // イベントリスナーを設定
-        item.querySelector('.toggle-parts-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleTypeParts(type.id);
-        });
+        const toggleBtn = item.querySelector('.toggle-parts-btn');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleTypeParts(type.id);
+            });
+        }
         
-        item.querySelector('.delete-type-btn').addEventListener('click', () => {
-            if (confirm(`カテゴリー「${type.name}」を削除しますか？`)) {
-                deleteDroneType(type.id);
-            }
-        });
+        const deleteBtn = item.querySelector('.delete-type-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', async () => {
+                if (confirm(`カテゴリー「${type.name}」を削除しますか？`)) {
+                    await deleteDroneType(type.id);
+                }
+            });
+        }
         
         const addPartForm = item.querySelector('.add-type-part-form');
-        addPartForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            addTypePart(type.id);
-        });
+        if (addPartForm) {
+            // typeIdを数値に変換して保存
+            const typeIdNum = typeof type.id === 'string' ? parseInt(type.id, 10) : type.id;
+            // data-type-id属性を確実に設定
+            addPartForm.setAttribute('data-type-id', typeIdNum);
+            
+            addPartForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // フォームから直接typeIdを取得（data-type-id属性から）
+                const formTypeId = addPartForm.getAttribute('data-type-id');
+                const formTypeIdNum = formTypeId ? (typeof formTypeId === 'string' ? parseInt(formTypeId, 10) : formTypeId) : typeIdNum;
+                
+                console.log('Adding part to type:', { formTypeId, formTypeIdNum, typeIdNum, originalTypeId: type.id });
+                
+                await addTypePart(formTypeIdNum || typeIdNum);
+                return false;
+            });
+        }
         
         const manufacturerSelect = item.querySelector('.type-part-manufacturer-select');
-        loadManufacturerOptionsForType(manufacturerSelect);
+        if (manufacturerSelect) {
+            loadManufacturerOptionsForType(manufacturerSelect).catch(console.error);
+        }
         
         // メーカー管理モーダルを開くリンクのイベントリスナー
         const openManufacturerModalLink = item.querySelector('.open-manufacturer-modal-link');
@@ -928,14 +1001,15 @@ function loadTypesList() {
         }
         
         item.querySelectorAll('.delete-type-part-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
                 const partIndex = parseInt(e.currentTarget.dataset.partIndex);
-                deleteTypePart(type.id, partIndex);
+                await deleteTypePart(type.id, partIndex);
             });
         });
         
         typesList.appendChild(item);
-    });
+    }
     
     lucide.createIcons();
 }
@@ -943,8 +1017,8 @@ function loadTypesList() {
 /**
  * Load manufacturer options for type part form
  */
-function loadManufacturerOptionsForType(selectElement) {
-    const manufacturers = manufacturerStorage.getAll();
+async function loadManufacturerOptionsForType(selectElement) {
+    const manufacturers = await manufacturerStorage.getAll();
     selectElement.innerHTML = '<option value="">メーカー（任意）</option>';
     
     manufacturers.forEach(manufacturer => {
@@ -974,54 +1048,133 @@ function toggleTypeParts(typeId) {
 /**
  * Add part to type
  */
-function addTypePart(typeId) {
-    const typeItem = document.querySelector(`.type-item-expandable[data-type-id="${typeId}"]`);
-    if (!typeItem) return;
-    
-    const input = typeItem.querySelector('.type-part-name-input');
-    const manufacturerSelect = typeItem.querySelector('.type-part-manufacturer-select');
-    const partName = input.value.trim();
-    const manufacturerId = manufacturerSelect.value || null;
-    
-    if (!partName) {
-        alert('パーツ名を入力してください');
-        return;
-    }
-    
-    const type = droneTypeStorage.getById(typeId);
-    if (!type) return;
-    
-    // defaultPartsを正規化（文字列の場合はオブジェクトに変換）
-    let defaultParts = type.defaultParts || [];
-    defaultParts = defaultParts.map(part => {
-        if (typeof part === 'string') {
-            return { name: part, manufacturerId: null };
+async function addTypePart(typeId) {
+    try {
+        console.log('addTypePart called with typeId:', typeId, 'type:', typeof typeId);
+        
+        // typeIdを数値に変換
+        let typeIdNum;
+        if (typeof typeId === 'string') {
+            typeIdNum = parseInt(typeId, 10);
+        } else if (typeof typeId === 'number') {
+            typeIdNum = typeId;
+        } else {
+            console.error('Invalid typeId type:', typeof typeId, typeId);
+            alert('カテゴリーIDが無効です');
+            return;
         }
-        return part;
-    });
-    
-    // 既に同じ名前のパーツが存在するかチェック
-    if (defaultParts.some(part => {
-        const name = typeof part === 'string' ? part : part.name;
-        return name === partName;
-    })) {
-        alert('このパーツは既に登録されています');
-        return;
+        
+        if (!typeIdNum || isNaN(typeIdNum)) {
+            console.error('Invalid typeId after conversion:', typeId, '->', typeIdNum);
+            alert('カテゴリーIDが無効です: ' + typeId);
+            return;
+        }
+        
+        console.log('Looking up type with id:', typeIdNum);
+        
+        // まずカテゴリーが存在するか確認
+        const type = await droneTypeStorage.getById(typeIdNum);
+        console.log('Type lookup result:', type);
+        
+        if (!type) {
+            // すべてのカテゴリーを取得して確認
+            const allTypes = await droneTypeStorage.getAll();
+            console.error('Type not found for typeId:', typeIdNum);
+            console.error('Available types:', allTypes.map(t => ({ id: t.id, name: t.name })));
+            alert(`カテゴリーが見つかりません (ID: ${typeIdNum})。ページを再読み込みしてください。`);
+            return;
+        }
+        
+        // DOM要素を取得（loadTypesListの前に取得）
+        const typeItem = document.querySelector(`.type-item-expandable[data-type-id="${typeIdNum}"]`);
+        if (!typeItem) {
+            console.error('Type item not found for typeId:', typeIdNum);
+            // すべてのtype-itemを確認
+            const allItems = document.querySelectorAll('.type-item-expandable');
+            console.error('Available type items:', Array.from(allItems).map(item => item.dataset.typeId));
+            alert('カテゴリー要素が見つかりません。ページを再読み込みしてください。');
+            return;
+        }
+        
+        const input = typeItem.querySelector('.type-part-name-input');
+        const manufacturerSelect = typeItem.querySelector('.type-part-manufacturer-select');
+        
+        if (!input || !manufacturerSelect) {
+            console.error('Form elements not found');
+            alert('フォーム要素が見つかりません');
+            return;
+        }
+        
+        const partName = input.value.trim();
+        const manufacturerId = manufacturerSelect.value || null;
+        
+        if (!partName) {
+            alert('パーツ名を入力してください');
+            return;
+        }
+        
+        console.log('Adding part:', { partName, manufacturerId, typeId: typeIdNum });
+        
+        // defaultPartsを正規化（文字列の場合はオブジェクトに変換）
+        let defaultParts = type.defaultParts || [];
+        defaultParts = defaultParts.map(part => {
+            if (typeof part === 'string') {
+                return { name: part, manufacturerId: null };
+            }
+            return part;
+        });
+        
+        // 既に同じ名前のパーツが存在するかチェック
+        if (defaultParts.some(part => {
+            const name = typeof part === 'string' ? part : part.name;
+            return name === partName;
+        })) {
+            alert('このパーツは既に登録されています');
+            return;
+        }
+        
+        defaultParts.push({ name: partName, manufacturerId });
+        console.log('Updating type with defaultParts:', defaultParts);
+        
+        await droneTypeStorage.update(typeIdNum, { defaultParts });
+        console.log('Type updated successfully');
+        
+        // パーツセクションが開いているかどうかを保存
+        const partsSection = typeItem.querySelector('.type-parts-section');
+        const wasExpanded = partsSection && partsSection.style.display !== 'none';
+        
+        // リストを再読み込み
+        await loadTypesList();
+        console.log('Types list reloaded');
+        
+        // パーツセクションを再度開く（開いていた場合）
+        if (wasExpanded) {
+            // 少し待ってから開く（DOMが更新されるまで）
+            setTimeout(() => {
+                const newTypeItem = document.querySelector(`.type-item-expandable[data-type-id="${typeIdNum}"]`);
+                if (newTypeItem) {
+                    const newPartsSection = newTypeItem.querySelector('.type-parts-section');
+                    const newToggleBtn = newTypeItem.querySelector('.toggle-parts-btn');
+                    if (newPartsSection && newToggleBtn) {
+                        newPartsSection.style.display = 'block';
+                        newToggleBtn.textContent = 'パーツを閉じる';
+                        newTypeItem.dataset.expanded = 'true';
+                    }
+                }
+            }, 100);
+        }
+    } catch (error) {
+        console.error('Error adding type part:', error);
+        console.error('Error stack:', error.stack);
+        alert('パーツの追加中にエラーが発生しました: ' + (error.message || '不明なエラー'));
     }
-    
-    defaultParts.push({ name: partName, manufacturerId });
-    droneTypeStorage.update(typeId, { defaultParts });
-    
-    input.value = '';
-    manufacturerSelect.value = '';
-    loadTypesList();
 }
 
 /**
  * Delete part from type
  */
-function deleteTypePart(typeId, partIndex) {
-    const type = droneTypeStorage.getById(typeId);
+async function deleteTypePart(typeId, partIndex) {
+    const type = await droneTypeStorage.getById(typeId);
     if (!type) return;
     
     const defaultParts = type.defaultParts || [];
@@ -1036,33 +1189,33 @@ function deleteTypePart(typeId, partIndex) {
     }
     
     defaultParts.splice(partIndex, 1);
-    droneTypeStorage.update(typeId, { defaultParts });
+    await droneTypeStorage.update(typeId, { defaultParts });
     
-    loadTypesList();
+    await loadTypesList();
 }
 
 /**
  * Add drone type
  */
-function addDroneType() {
+async function addDroneType() {
     const name = document.getElementById('new-type-name').value.trim();
     if (!name) {
         alert('種類名を入力してください');
         return;
     }
 
-    droneTypeStorage.add({ name });
+    await droneTypeStorage.add({ name });
     document.getElementById('new-type-name').value = '';
-    loadTypesList();
-    loadTypeFilter();
+    await loadTypesList();
+    await loadTypeFilter();
 }
 
 /**
  * Delete drone type
  */
-function deleteDroneType(typeId) {
+async function deleteDroneType(typeId) {
     // 使用中の機体があるかチェック
-    const drones = droneStorage.getAll();
+    const drones = await droneStorage.getAll();
     const inUse = drones.some(drone => drone.type === typeId);
     
     if (inUse) {
@@ -1070,16 +1223,16 @@ function deleteDroneType(typeId) {
         return;
     }
 
-    droneTypeStorage.remove(typeId);
-    loadTypesList();
-    loadTypeFilter();
+    await droneTypeStorage.remove(typeId);
+    await loadTypesList();
+    await loadTypeFilter();
 }
 
 /**
  * Delete drone
  */
-function deleteDrone(droneId) {
-    const drone = droneStorage.getById(droneId);
+async function deleteDrone(droneId) {
+    const drone = await droneStorage.getById(droneId);
     if (!drone) return;
 
     if (!confirm(`「${drone.name}」を削除しますか？\n\n関連するパーツと修理履歴もすべて削除されます。`)) {
@@ -1087,28 +1240,28 @@ function deleteDrone(droneId) {
     }
 
     // 関連するパーツを削除
-    const parts = partStorage.getByDroneId(droneId);
-    parts.forEach(part => {
+    const parts = await partStorage.getByDroneId(droneId);
+    for (const part of parts) {
         // パーツに関連する修理履歴を削除
-        const partRepairs = repairStorage.getByPartId(part.id);
-        partRepairs.forEach(repair => {
-            repairStorage.remove(repair.id);
-        });
-        partStorage.remove(part.id);
-    });
+        const partRepairs = await repairStorage.getByPartId(part.id);
+        for (const repair of partRepairs) {
+            await repairStorage.remove(repair.id);
+        }
+        await partStorage.remove(part.id);
+    }
 
     // 機体に関連する修理履歴を削除
-    const repairs = repairStorage.getByDroneId(droneId);
-    repairs.forEach(repair => {
-        repairStorage.remove(repair.id);
-    });
+    const repairs = await repairStorage.getByDroneId(droneId);
+    for (const repair of repairs) {
+        await repairStorage.remove(repair.id);
+    }
 
     // 機体を削除
-    droneStorage.remove(droneId);
+    await droneStorage.remove(droneId);
 
     // 一覧ページに戻る
-    showHomePage();
-    updateStats();
+    await showHomePage();
+    await updateStats();
 }
 
 /**
@@ -1121,11 +1274,11 @@ export function getCurrentDroneId() {
 /**
  * Update drone status
  */
-function updateDroneStatus(droneId, status) {
-    droneStorage.update(droneId, { status });
+async function updateDroneStatus(droneId, status) {
+    await droneStorage.update(droneId, { status });
     // 一覧画面も更新する必要がある場合は再読み込み
     if (document.getElementById('drone-list')) {
-        loadDroneList();
+        await loadDroneList();
     }
 }
 
@@ -1150,8 +1303,8 @@ function formatDate(dateString) {
 /**
  * Open manage manufacturers modal
  */
-function openManageManufacturersModal() {
-    loadManufacturersList();
+async function openManageManufacturersModal() {
+    await loadManufacturersList();
     const form = document.getElementById('add-manufacturer-form');
     if (form) {
         form.reset();
@@ -1165,8 +1318,8 @@ function openManageManufacturersModal() {
 /**
  * Load manufacturers list
  */
-function loadManufacturersList() {
-    const manufacturers = manufacturerStorage.getAll();
+async function loadManufacturersList() {
+    const manufacturers = await manufacturerStorage.getAll();
     const manufacturersList = document.getElementById('manufacturers-list');
     
     manufacturersList.innerHTML = '';
@@ -1205,7 +1358,7 @@ function loadManufacturersList() {
 /**
  * Add manufacturer
  */
-function addManufacturer() {
+async function addManufacturer() {
     const nameInput = document.getElementById('new-manufacturer-name');
     if (!nameInput) return;
     
@@ -1216,16 +1369,16 @@ function addManufacturer() {
     }
 
     // メーカーを追加
-    manufacturerStorage.add({ name });
+    await manufacturerStorage.add({ name });
     
     // 入力フィールドをクリア
     nameInput.value = '';
     
     // メーカーリストを更新
-    loadManufacturersList();
+    await loadManufacturersList();
     
     // 種類管理画面のメーカー選択プルダウンを更新
-    updateAllTypePartManufacturerSelects();
+    await updateAllTypePartManufacturerSelects();
     
     // メーカー管理モーダルを開いたままにする（閉じない）
     // 種類管理モーダルも開いたままにする
@@ -1234,18 +1387,17 @@ function addManufacturer() {
 /**
  * Update all manufacturer selects in type part forms
  */
-function updateAllTypePartManufacturerSelects() {
-    document.querySelectorAll('.type-part-manufacturer-select').forEach(select => {
-        loadManufacturerOptionsForType(select);
-    });
+async function updateAllTypePartManufacturerSelects() {
+    const selects = document.querySelectorAll('.type-part-manufacturer-select');
+    await Promise.all(Array.from(selects).map(select => loadManufacturerOptionsForType(select)));
 }
 
 /**
  * Delete manufacturer
  */
-function deleteManufacturer(manufacturerId) {
+async function deleteManufacturer(manufacturerId) {
     // 使用中のパーツがあるかチェック
-    const parts = partStorage.getAll();
+    const parts = await partStorage.getAll();
     const inUse = parts.some(part => part.manufacturerId === manufacturerId);
     
     if (inUse) {
@@ -1253,7 +1405,7 @@ function deleteManufacturer(manufacturerId) {
         return;
     }
 
-    manufacturerStorage.remove(manufacturerId);
-    loadManufacturersList();
+    await manufacturerStorage.remove(manufacturerId);
+    await loadManufacturersList();
 }
 

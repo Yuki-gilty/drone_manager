@@ -436,6 +436,7 @@ body {
     backdrop-filter: blur(4px);
     align-items: center;
     justify-content: center;
+    pointer-events: auto;
 }
 
 .modal-content {
@@ -452,6 +453,7 @@ body {
     margin: 1rem;
     position: relative;
     pointer-events: auto;
+    z-index: 1001;
 }
 
 .modal-content .close {

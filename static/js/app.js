@@ -6,19 +6,20 @@ import { initDroneManagement, showDroneDetail, getCurrentDroneId } from './drone
 import { initCalendar } from './calendar.js';
 import { partStorage, repairStorage, droneStorage, droneTypeStorage, manufacturerStorage } from './storage.js';
 import { addReplacement } from './parts.js';
+import { initAuth } from './auth.js';
 
 /**
  * Initialize application
  */
-function init() {
+export async function initApp() {
     // ナビゲーション
     setupNavigation();
     
     // 機体管理の初期化
-    initDroneManagement();
+    await initDroneManagement();
     
     // カレンダーの初期化
-    initCalendar();
+    await initCalendar();
     
     // モーダルの設定
     setupModals();
@@ -27,6 +28,13 @@ function init() {
     if (window.lucide) {
         window.lucide.createIcons();
     }
+}
+
+/**
+ * Initialize application (non-async wrapper for backward compatibility)
+ */
+async function init() {
+    await initApp();
 }
 
 /**
@@ -47,27 +55,44 @@ function setupNavigation() {
                 showPage('home-page');
             } else if (page === 'calendar') {
                 showPage('calendar-page');
-                // カレンダーを再レンダリング
-                import('./calendar.js').then(module => {
-                    // イベントリスナーを再設定
-                    if (module.reinitCalendarListeners) {
-                        module.reinitCalendarListeners();
-                    }
-                    // renderCalendar関数を直接呼び出す
-                    if (module.renderCalendar) {
-                        module.renderCalendar();
-                    } else if (window.renderCalendar) {
-                        window.renderCalendar();
-                    }
+                // カレンダーを再レンダリング（showPage内でも呼ばれるが、重複を防ぐためここではイベントリスナーのみ設定）
+                import('./calendar.js').then(async module => {
+                    // 少し待ってからイベントリスナーを設定（DOMが完全に表示されるまで）
+                    setTimeout(() => {
+                        // イベントリスナーを再設定
+                        if (module.reinitCalendarListeners) {
+                            module.reinitCalendarListeners();
+                        } else if (window.reinitCalendarListeners) {
+                            window.reinitCalendarListeners();
+                        }
+                        
+                        // ボタンが存在することを確認してから直接イベントリスナーを設定（フォールバック）
+                        const addPracticeDayBtn = document.getElementById('add-practice-day');
+                        if (addPracticeDayBtn && window.openAddPracticeModal) {
+                            addPracticeDayBtn.onclick = (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('Add practice day button clicked (direct)');
+                                window.openAddPracticeModal();
+                            };
+                        }
+                    }, 100);
                 }).catch(err => {
                     console.error('Error loading calendar module:', err);
                     // フォールバック: window経由で呼び出す
-                    if (window.reinitCalendarListeners) {
-                        window.reinitCalendarListeners();
-                    }
-                    if (window.renderCalendar) {
-                        window.renderCalendar();
-                    }
+                    setTimeout(() => {
+                        if (window.reinitCalendarListeners) {
+                            window.reinitCalendarListeners();
+                        }
+                        const addPracticeDayBtn = document.getElementById('add-practice-day');
+                        if (addPracticeDayBtn && window.openAddPracticeModal) {
+                            addPracticeDayBtn.onclick = (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                window.openAddPracticeModal();
+                            };
+                        }
+                    }, 100);
                 });
             }
             
@@ -81,7 +106,7 @@ function setupNavigation() {
 /**
  * Show specific page
  */
-function showPage(pageId) {
+async function showPage(pageId) {
     document.querySelectorAll('.page').forEach(page => {
         page.classList.remove('active');
     });
@@ -91,12 +116,22 @@ function showPage(pageId) {
         
         // カレンダーページが表示された時にカレンダーを再レンダリング
         if (pageId === 'calendar-page') {
-            if (window.reinitCalendarListeners) {
-                window.reinitCalendarListeners();
-            }
-            if (window.renderCalendar) {
-                window.renderCalendar();
-            }
+            // 少し待ってからイベントリスナーを設定（DOMが完全に表示されるまで待つ）
+            setTimeout(async () => {
+                // カレンダーコンテナが既に内容を持っている場合はスキップ（重複防止）
+                const container = document.getElementById('calendar-container');
+                if (container && container.children.length === 0) {
+                    // カレンダーがまだレンダリングされていない場合のみレンダリング
+                    if (window.renderCalendar) {
+                        await window.renderCalendar();
+                    }
+                }
+                
+                // イベントリスナーを再設定（ボタンが確実に存在する状態で）
+                if (window.reinitCalendarListeners) {
+                    window.reinitCalendarListeners();
+                }
+            }, 50);
         }
     }
 }
@@ -108,9 +143,9 @@ function setupModals() {
     // パーツ追加モーダル
     const addPartForm = document.getElementById('add-part-form');
     if (addPartForm) {
-        addPartForm.addEventListener('submit', (e) => {
+        addPartForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            addPart();
+            await addPart();
         });
     }
     
@@ -145,17 +180,17 @@ function setupModals() {
     // 修理履歴追加モーダル
     const addRepairForm = document.getElementById('add-repair-form');
     if (addRepairForm) {
-        addRepairForm.addEventListener('submit', (e) => {
+        addRepairForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            addRepair();
+            await addRepair();
         });
     }
     setupModalCloseButton('add-repair-modal');
 
     // パーツ追加モーダルの開閉
-    window.openAddPartModal = function() {
+    window.openAddPartModal = async function() {
         document.getElementById('add-part-form').reset();
-        loadPartNameOptions();
+        await loadPartNameOptions();
         document.getElementById('part-name-custom').style.display = 'none';
         document.getElementById('add-part-modal').style.display = 'flex';
     };
@@ -170,18 +205,18 @@ function setupModals() {
 /**
  * Load part name options from drone type default parts
  */
-function loadPartNameOptions() {
+async function loadPartNameOptions() {
     const droneId = getCurrentDroneId();
     if (!droneId) return;
 
-    const drone = droneStorage.getById(droneId);
+    const drone = await droneStorage.getById(droneId);
     if (!drone) return;
 
-    const droneType = droneTypeStorage.getById(drone.type);
+    const droneType = await droneTypeStorage.getById(drone.type);
     if (!droneType) return;
 
     // 既に追加されているパーツ名を取得
-    const existingParts = partStorage.getByDroneId(droneId);
+    const existingParts = await partStorage.getByDroneId(droneId);
     const existingPartNames = existingParts.map(part => part.name);
 
     // 種類のデフォルトパーツを取得（互換性のため、文字列の場合はそのまま、オブジェクトの場合はnameを使用）
@@ -219,14 +254,14 @@ function loadPartNameOptions() {
     }
 
     // メーカー選択肢を読み込む
-    loadManufacturerOptions();
+    await loadManufacturerOptions();
 }
 
 /**
  * Load manufacturer options
  */
-function loadManufacturerOptions() {
-    const manufacturers = manufacturerStorage.getAll();
+async function loadManufacturerOptions() {
+    const manufacturers = await manufacturerStorage.getAll();
     const select = document.getElementById('part-manufacturer');
     
     select.innerHTML = '<option value="">選択してください（任意）</option>';
@@ -242,7 +277,7 @@ function loadManufacturerOptions() {
 /**
  * Add part
  */
-function addPart() {
+async function addPart() {
     const droneId = getCurrentDroneId();
     if (!droneId) return;
 
@@ -268,7 +303,7 @@ function addPart() {
     }
 
     // 既に同じ名前のパーツが存在するかチェック
-    const existingParts = partStorage.getByDroneId(droneId);
+    const existingParts = await partStorage.getByDroneId(droneId);
     if (existingParts.some(part => part.name === name)) {
         alert('このパーツは既に追加されています');
         return;
@@ -282,26 +317,26 @@ function addPart() {
         manufacturerId: manufacturerSelect.value || null
     };
 
-    const newPart = partStorage.add(part);
+    const newPart = await partStorage.add(part);
     
     // 機体のparts配列を更新
-    const drone = droneStorage.getById(droneId);
+    const drone = await droneStorage.getById(droneId);
     if (drone) {
         const parts = drone.parts || [];
         parts.push(newPart.id);
-        droneStorage.update(droneId, { parts });
+        await droneStorage.update(droneId, { parts });
     }
 
     closeModal('add-part-modal');
     
     // 機体詳細を再表示
-    showDroneDetail(droneId);
+    await showDroneDetail(droneId);
 }
 
 /**
  * Add repair
  */
-function addRepair() {
+async function addRepair() {
     const droneId = getCurrentDroneId();
     if (!droneId) return;
 
@@ -320,11 +355,11 @@ function addRepair() {
         description
     };
 
-    repairStorage.add(repair);
+    await repairStorage.add(repair);
     closeModal('add-repair-modal');
     
     // 機体詳細を再表示
-    showDroneDetail(droneId);
+    await showDroneDetail(droneId);
 }
 
 /**
@@ -460,11 +495,20 @@ function setupThemeToggle() {
 }
 
 // アプリケーション初期化
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // テーマを最初に初期化（DOMが読み込まれた直後）
     initTheme();
     setupThemeToggle();
-    // その後、他の初期化処理を実行
-    init();
+    
+    // 認証を初期化
+    const isAuthenticated = await initAuth();
+    
+    // 認証済みの場合のみアプリを初期化
+    if (isAuthenticated) {
+        init();
+    }
 });
+
+// グローバルに公開
+window.initApp = init;
 

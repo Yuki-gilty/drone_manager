@@ -5,4 +5,6 @@ description = "Drone racing management web application POC"
 requires-python = ">=3.11"
 dependencies = [
     "flask>=3.0.0",
+    "flask-session>=0.5.0",
+    "werkzeug>=3.0.0",
 ]
