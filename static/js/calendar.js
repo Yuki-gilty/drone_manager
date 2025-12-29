@@ -187,12 +187,12 @@ export async function renderCalendar() {
         return;
     }
     
-    // 既存のカレンダーを非表示にしてから新しいカレンダーを作成
+    // 既存のカレンダーを取得
     const existingCalendar = container.querySelector('.calendar-grid');
-    if (existingCalendar) {
-        // 既存のカレンダーを非表示にする（フェードアウト効果）
-        existingCalendar.style.opacity = '0';
-        existingCalendar.style.transition = 'opacity 0.2s ease';
+    
+    // コンテナにposition: relativeを設定（新しいカレンダーを絶対配置するため）
+    if (!container.style.position) {
+        container.style.position = 'relative';
     }
     
     // 新しいカレンダーグリッドを作成（既存のものは残したまま）
@@ -200,6 +200,15 @@ export async function renderCalendar() {
     calendar.className = 'calendar-grid';
     calendar.style.opacity = '0';
     calendar.style.transition = 'opacity 0.2s ease';
+    
+    // 既存のカレンダーがある場合、新しいカレンダーを絶対配置で上に重ねる
+    if (existingCalendar) {
+        calendar.style.position = 'absolute';
+        calendar.style.top = '0';
+        calendar.style.left = '0';
+        calendar.style.width = '100%';
+        calendar.style.zIndex = '1';
+    }
 
     // 曜日ヘッダー
     const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
@@ -330,21 +339,31 @@ export async function renderCalendar() {
         calendar.appendChild(dayCell);
     }
 
-    // 新しいカレンダーをコンテナに追加
+    // 新しいカレンダーをコンテナに追加（既存のカレンダーの上に重ねる）
     container.appendChild(calendar);
     
     // 少し待ってからフェードイン効果を適用
-    setTimeout(() => {
-        calendar.style.opacity = '1';
-    }, 10);
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            calendar.style.opacity = '1';
+        });
+    });
     
-    // 既存のカレンダーを削除（フェードアウト後に）
+    // 既存のカレンダーを削除（新しいカレンダーが表示された後）
     if (existingCalendar) {
         setTimeout(() => {
             if (existingCalendar.parentNode) {
                 existingCalendar.remove();
             }
-        }, 200);
+            // 既存のカレンダーを削除した後、新しいカレンダーの絶対配置を解除
+            if (calendar.parentNode === container) {
+                calendar.style.position = '';
+                calendar.style.top = '';
+                calendar.style.left = '';
+                calendar.style.width = '';
+                calendar.style.zIndex = '';
+            }
+        }, 250);
     }
     
     if (window.lucide) {
