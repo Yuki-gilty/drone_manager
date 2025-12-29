@@ -1,0 +1,17 @@
+# Netlify Configuration
+
+[build]
+  # ビルドコマンドは不要（静的ファイルのみ）
+  publish = "."
+
+[[redirects]]
+  # SPA用のリダイレクト設定
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  # 環境変数はNetlifyダッシュボードで設定
+  # VITE_SUPABASE_URL
+  # VITE_SUPABASE_ANON_KEY
+
