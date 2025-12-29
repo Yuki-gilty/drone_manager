@@ -100,12 +100,25 @@ export async function initAuth() {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const username = document.getElementById('register-username').value.trim();
-            const email = document.getElementById('register-email').value.trim() || null;
+            const emailInput = document.getElementById('register-email');
+            const email = emailInput ? emailInput.value.trim() || null : null;
             const password = document.getElementById('register-password').value;
             const errorDiv = document.getElementById('register-error');
             
             errorDiv.style.display = 'none';
             errorDiv.textContent = '';
+            
+            if (!username) {
+                errorDiv.textContent = 'ユーザー名は必須です';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            if (!password) {
+                errorDiv.textContent = 'パスワードは必須です';
+                errorDiv.style.display = 'block';
+                return;
+            }
             
             if (password.length < 8) {
                 errorDiv.textContent = 'パスワードは8文字以上である必要があります';
@@ -115,12 +128,17 @@ export async function initAuth() {
             
             try {
                 const result = await authAPI.register(username, password, email);
-                await showMainApp(result.user);
-                // アプリケーションを初期化
-                if (window.initApp) {
-                    window.initApp();
+                if (result && result.user) {
+                    await showMainApp(result.user);
+                    // アプリケーションを初期化
+                    if (window.initApp) {
+                        window.initApp();
+                    }
+                } else {
+                    throw new Error('登録に失敗しました: ユーザー情報が取得できませんでした');
                 }
             } catch (error) {
+                console.error('Registration error:', error);
                 errorDiv.textContent = error.message || '登録に失敗しました';
                 errorDiv.style.display = 'block';
             }
