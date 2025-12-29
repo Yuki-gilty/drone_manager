@@ -12,7 +12,10 @@ drone_manager/
 │   ├── ARCHITECTURE.md            # アーキテクチャ設計書
 │   ├── DEPLOYMENT.md              # デプロイメントガイド
 │   ├── IMPLEMENTATION_STATUS.md   # 実装進捗状況
+│   ├── LOCAL_DEVELOPMENT.md       # ローカル開発ガイド
+│   ├── SECURITY.md                # セキュリティガイド
 │   ├── SUPABASE_SETUP.md          # Supabaseセットアップガイド
+│   ├── supabase_complete_setup.sql # 完全なSupabaseセットアップSQL
 │   └── supabase_rls_policies.sql  # RLSポリシーSQL
 ├── static/                        # 静的ファイル
 │   ├── css/
@@ -27,7 +30,8 @@ drone_manager/
 │       ├── storage.js             # データストレージ抽象化
 │       └── supabase.js            # Supabase Client初期化
 ├── templates/                     # HTMLテンプレート
-│   └── index.html                 # メインHTML
+│   ├── index.html                 # メインHTML（本番用）
+│   └── index-local.html           # ローカル開発用HTML（gitignore対象）
 ├── .env.example                   # 環境変数テンプレート
 ├── .gitignore                     # Git除外設定
 ├── netlify.toml                   # Netlify設定
@@ -43,7 +47,10 @@ drone_manager/
 - **docs/ARCHITECTURE.md**: システムアーキテクチャの詳細説明
 - **docs/DEPLOYMENT.md**: Netlifyへのデプロイ手順
 - **docs/IMPLEMENTATION_STATUS.md**: 実装の進捗状況
+- **docs/LOCAL_DEVELOPMENT.md**: ローカル開発環境のセットアップ手順
+- **docs/SECURITY.md**: セキュリティに関するガイドライン
 - **docs/SUPABASE_SETUP.md**: Supabaseプロジェクトのセットアップ手順
+- **docs/supabase_complete_setup.sql**: 完全なSupabaseセットアップSQL（テーブル、RLS、トリガー、RPC関数）
 - **docs/supabase_rls_policies.sql**: Row Level SecurityポリシーのSQLスクリプト
 - **SUPABASE_MIGRATION.md**: FlaskからSupabaseへの移行計画
 

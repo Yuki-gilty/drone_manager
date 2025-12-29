@@ -95,12 +95,16 @@
 ## コミット履歴
 
 ```
+* 78f0263 feat: Add username-based login with RPC and local development support
+* 9ae0e5c security: Strengthen .gitignore for credential protection
+* 8066cb4 docs: Add project structure documentation
+* 7b19063 chore: Remove obsolete Flask server files and update project structure
+* 8bfd2c9 docs: Add implementation status document
 * 13c489d docs: Update migration plan with progress status
 * ee0f6b8 fix: Improve Supabase client configuration and add deployment guide
 * c7123a9 docs: Add RLS policies SQL and update README for Supabase + Netlify
 * a4f22ee feat: Migrate authentication to Supabase Auth
 * b372b5f feat: Add Supabase configuration and rewrite API layer
-* 11a67a5 docs: Add Supabase migration plan and architecture documentation
 ```
 
 ## 技術的な実装詳細

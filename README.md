@@ -54,6 +54,9 @@
 
 Supabaseダッシュボードの「SQL Editor」で以下のSQLを実行：
 
+**推奨**: [docs/supabase_complete_setup.sql](./docs/supabase_complete_setup.sql) を実行（テーブル、RLS、トリガー、RPC関数を一括作成）
+
+または個別に実行：
 1. テーブル作成: [docs/SUPABASE_SETUP.md](./docs/SUPABASE_SETUP.md) の「データベーススキーマの作成」セクションを参照
 2. RLSポリシー設定: [docs/supabase_rls_policies.sql](./docs/supabase_rls_policies.sql) を実行
 
@@ -73,19 +76,23 @@ VITE_SUPABASE_ANON_KEY=[YOUR_ANON_KEY]
 
 ### 4. ローカル開発環境（オプション）
 
-静的ファイルを配信するための簡単なHTTPサーバーを使用：
+ローカル開発環境の詳細なセットアップ手順は [docs/LOCAL_DEVELOPMENT.md](./docs/LOCAL_DEVELOPMENT.md) を参照してください。
+
+**クイックスタート**:
 
 ```bash
-# Python 3の場合
+# 1. ローカル開発用HTMLファイルを作成
+cp templates/index.html templates/index-local.html
+
+# 2. index-local.htmlにSupabase認証情報のmetaタグを追加（ドキュメント参照）
+
+# 3. サーバー起動
 python -m http.server 8000
-
-# Node.jsの場合
-npx serve .
-
-# または、VS CodeのLive Server拡張機能を使用
 ```
 
-ブラウザで `http://localhost:8000` にアクセス
+ブラウザで `http://localhost:8000/templates/index-local.html` にアクセス
+
+**重要**: `python -m http.server`は`.env`ファイルを読み込めないため、`index-local.html`にmetaタグで認証情報を設定する必要があります
 
 ### 5. Netlifyへのデプロイ
 
